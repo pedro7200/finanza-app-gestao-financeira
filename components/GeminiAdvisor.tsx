@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI } from "@google/genai";
 import { Transaction } from '../types';
 
 interface GeminiAdvisorProps {
@@ -17,6 +17,7 @@ export const GeminiAdvisor: React.FC<GeminiAdvisorProps> = ({ transactions, onHa
     if (transactions.length === 0) return;
     setLoading(true);
     try {
+      // Fix: Ensure initialization uses the object literal format as per guidelines
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const expenseSummary = transactions
         .filter(t => t.type === 'EXPENSE' || t.type === 'PROSPECT_EXPENSE')
@@ -31,11 +32,13 @@ export const GeminiAdvisor: React.FC<GeminiAdvisorProps> = ({ transactions, onHa
         Gastos por categoria: ${JSON.stringify(expenseSummary)}
         Seja direto. Máximo 150 caracteres.`;
 
+      // Fix: Use ai.models.generateContent directly
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: prompt,
       });
 
+      // Fix: Ensure accessing the .text property (not a method) correctly
       setAdvice(response.text || 'Mantenha o rigor no controle de custos fixos.');
     } catch (error) {
       console.error('Error fetching AI advice:', error);
