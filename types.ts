@@ -13,11 +13,6 @@ export interface Transaction {
   recurrenceMonths?: number; // 0 para indeterminado, ou número de meses
 }
 
-export interface UserAccount {
-  username: string;
-  passcode: string; // Senha numérica de 6 dígitos
-}
-
 export interface FinancialStats {
   onHand: number;
   projectedTotal: number;
