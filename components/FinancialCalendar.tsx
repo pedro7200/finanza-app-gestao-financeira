@@ -1,7 +1,7 @@
 
 import React, { useMemo } from 'react';
 import { Transaction } from '../types';
-import { getDaysInMonth, getFirstDayOfMonth, formatCurrency, getMonthLimits } from '../utils';
+import { getDaysInMonth, getFirstDayOfMonth, getMonthLimits } from '../utils';
 
 interface FinancialCalendarProps {
   transactions: Transaction[];
@@ -14,65 +14,64 @@ export const FinancialCalendar: React.FC<FinancialCalendarProps> = ({ transactio
   const firstDay = getFirstDayOfMonth(year, month);
   const monthName = new Intl.DateTimeFormat('pt-BR', { month: 'long' }).format(new Date(year, month));
 
-  const dailyMetrics = useMemo(() => {
-    const metrics: Record<number, { balance: number, onHandAtDay: number, trans: Transaction[] }> = {};
-    let runningTotal = 0;
-
-    for (let day = 1; day <= daysInMonth; day++) {
-      const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  const dayData = useMemo(() => {
+    const map: Record<number, { hasIncome: boolean, hasExpense: boolean, count: number }> = {};
+    for (let i = 1; i <= daysInMonth; i++) {
+      const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
       const dayTrans = transactions.filter(t => t.date === dateStr);
-      
-      let dayBalance = 0;
-      dayTrans.forEach(t => {
-        const isInc = t.type === 'INCOME' || t.type === 'PROSPECT_INCOME';
-        const isExp = t.type === 'EXPENSE' || t.type === 'PROSPECT_EXPENSE';
-        if (isInc) dayBalance += t.amount;
-        if (isExp) dayBalance -= t.amount;
-      });
-
-      runningTotal += dayBalance;
-      metrics[day] = { balance: dayBalance, onHandAtDay: runningTotal, trans: dayTrans };
+      map[i] = {
+        hasIncome: dayTrans.some(t => t.type === 'INCOME'),
+        hasExpense: dayTrans.some(t => t.type === 'EXPENSE'),
+        count: dayTrans.length
+      };
     }
-    return metrics;
+    return map;
   }, [transactions, year, month]);
 
   return (
-    <div className="bg-white rounded-lg p-4 border border-slate-100 shadow-sm">
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-base font-bold text-slate-700 capitalize tracking-tight">{monthName} {year}</h2>
-        <div className="flex gap-2">
-           <div className="flex items-center gap-1"><div className="w-1 h-1 rounded-full bg-emerald-400"></div><span className="text-[7px] font-bold text-slate-300 uppercase">Ganhos</span></div>
-           <div className="flex items-center gap-1"><div className="w-1 h-1 rounded-full bg-rose-400"></div><span className="text-[7px] font-bold text-slate-300 uppercase">Gastos</span></div>
+    <div className="bg-white rounded-[32px] p-6 border-2 border-slate-100 shadow-sm">
+      <div className="flex justify-between items-center mb-8 px-2">
+        <h2 className="text-xl font-black text-slate-800 capitalize tracking-tight">{monthName} <span className="text-slate-300">{year}</span></h2>
+        <div className="flex gap-3">
+           <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-emerald-400"></div><span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Ganhos</span></div>
+           <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-rose-400"></div><span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Gastos</span></div>
         </div>
       </div>
 
-      <div className="grid grid-cols-7 gap-0.5">
-        {['D', 'S', 'T', 'Q', 'Q', 'S', 'S'].map(d => (
-          <div key={d} className="text-center text-[8px] font-bold text-slate-300 py-1 uppercase">{d}</div>
+      <div className="grid grid-cols-7 gap-1">
+        {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map(d => (
+          <div key={d} className="text-center text-[9px] font-black text-slate-300 py-2 uppercase tracking-tighter">{d}</div>
         ))}
 
         {Array.from({ length: firstDay }).map((_, i) => (
-          <div key={`b-${i}`} className="aspect-square bg-slate-50/20 rounded"></div>
+          <div key={`empty-${i}`} className="aspect-square"></div>
         ))}
 
         {Array.from({ length: daysInMonth }).map((_, i) => {
           const day = i + 1;
-          const { balance, trans } = dailyMetrics[day];
-          const hasMovement = trans.length > 0;
+          const { hasIncome, hasExpense, count } = dayData[day];
+          const isToday = new Date().getDate() === day && new Date().getMonth() === month;
 
           return (
             <button
               key={day}
-              onClick={() => onDateClick(`${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`)}
-              className={`group relative aspect-square rounded flex flex-col items-center justify-center gap-0.5 border transition-all hover:bg-slate-50 active:scale-95 ${
-                hasMovement ? 'border-slate-100 bg-white' : 'border-transparent'
-              }`}
+              onClick={() => onDateClick(`${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`)}
+              className={`relative aspect-square rounded-2xl flex flex-col items-center justify-center transition-all hover:bg-slate-50 border-2 active:scale-95 ${
+                isToday ? 'border-slate-800' : 'border-transparent'
+              } ${count > 0 ? 'bg-slate-50/50' : ''}`}
             >
-              <span className="text-[9px] font-bold text-slate-500">{day}</span>
-              <div className="flex gap-0.5">
-                {trans.some(t => t.type.includes('INCOME')) && <div className="w-0.5 h-0.5 rounded-full bg-emerald-400"></div>}
-                {trans.some(t => t.type.includes('EXPENSE')) && <div className="w-0.5 h-0.5 rounded-full bg-rose-400"></div>}
+              <span className={`text-xs font-bold ${isToday ? 'text-slate-800' : 'text-slate-400'}`}>{day}</span>
+              
+              <div className="absolute bottom-2 flex gap-0.5">
+                {hasIncome && <div className="w-1 h-1 rounded-full bg-emerald-400 shadow-[0_0_4px_rgba(52,211,153,0.5)]"></div>}
+                {hasExpense && <div className="w-1 h-1 rounded-full bg-rose-400 shadow-[0_0_4px_rgba(251,113,133,0.5)]"></div>}
               </div>
+
+              {count > 3 && (
+                <div className="absolute top-1 right-1 w-3 h-3 bg-slate-200 rounded-full flex items-center justify-center">
+                  <span className="text-[6px] font-bold text-slate-500">{count}</span>
+                </div>
+              )}
             </button>
           );
         })}
