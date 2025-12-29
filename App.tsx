@@ -4,7 +4,7 @@ import { Transaction, Tab } from './types';
 import { TransactionForm } from './components/TransactionForm';
 import { FinancialCalendar } from './components/FinancialCalendar';
 import { SummaryHeader } from './components/SummaryHeader';
-import { GeminiAdvisor } from './components/GeminiAdvisor';
+import { FinancialTips } from './components/FinancialTips';
 import { calculateFinances, formatCurrency, formatDate, getCategoryTotals } from './utils';
 
 const App: React.FC = () => {
@@ -107,7 +107,7 @@ const App: React.FC = () => {
           <div className="space-y-6 animate-in fade-in duration-500">
             <header className="px-1">
                <h1 className="text-3xl font-black tracking-tight text-slate-800 uppercase">Finanza.</h1>
-               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-1">Mentor Financeiro Inteligente</p>
+               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-1">Sua Gestão Financeira Completa</p>
             </header>
 
             <div className="grid grid-cols-2 gap-3">
@@ -123,8 +123,8 @@ const App: React.FC = () => {
                </div>
             </div>
 
-            {/* IA Advisor */}
-            <GeminiAdvisor transactions={transactions} onHand={stats.onHand} projected={stats.projectedTotal} />
+            {/* Componente de Dicas Financeiras (Substituindo a IA) */}
+            <FinancialTips />
 
             {/* Resumo de Custos */}
             <div className="bg-white p-6 rounded-3xl border-2 border-slate-100 shadow-sm space-y-4">
@@ -242,8 +242,7 @@ const App: React.FC = () => {
           <div className="space-y-6 animate-in fade-in duration-500">
              <h2 className="text-lg font-black text-slate-800 px-1 uppercase tracking-tight">Análise de Gastos</h2>
              <div className="bg-white p-7 rounded-3xl border-2 border-slate-100 space-y-6">
-                {/* Fix: cast Object.entries to [string, number][] to fix arithmetic and type assignment errors */}
-                {Object.entries(categoryTotals).length > 0 ? (Object.entries(categoryTotals) as [string, number][]).sort((a,b) => b[1] - a[1]).map(([cat, val]) => {
+                {(Object.entries(categoryTotals) as [string, number][]).length > 0 ? (Object.entries(categoryTotals) as [string, number][]).sort((a,b) => b[1] - a[1]).map(([cat, val]) => {
                   const perc = stats.monthlyExpenses > 0 ? (val / stats.monthlyExpenses) * 100 : 0;
                   return (
                     <div key={cat} className="space-y-2">
