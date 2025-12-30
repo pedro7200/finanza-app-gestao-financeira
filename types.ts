@@ -13,6 +13,19 @@ export interface Transaction {
   recurrenceMonths?: number; // 0 para indeterminado, ou número de meses
 }
 
+export interface Saving {
+  id: string;
+  amount: number;
+  date: string;
+}
+
+export interface WishlistItem {
+  id: string;
+  title: string;
+  amount: number;
+  targetDate: string;
+}
+
 export interface FinancialStats {
   onHand: number;
   projectedTotal: number;
@@ -22,4 +35,4 @@ export interface FinancialStats {
   healthScore: number;
 }
 
-export type Tab = 'home' | 'extract' | 'calendar' | 'analytics' | 'fixed';
+export type Tab = 'home' | 'extract' | 'calendar' | 'analytics' | 'fixed' | 'savings' | 'wishlist';
