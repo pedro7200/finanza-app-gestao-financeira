@@ -18,6 +18,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onAdd, onClose
   const [date, setDate] = useState(initialData?.date || new Date().toISOString().split('T')[0]);
   const [isFixed, setIsFixed] = useState(initialData?.isFixed || false);
   const [recurrence, setRecurrence] = useState(initialData?.recurrenceMonths?.toString() || '0');
+  const [newCat, setNewCat] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,6 +38,14 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onAdd, onClose
 
     onAdd(transactionData);
     onClose();
+  };
+
+  const handleAddCustomCategory = () => {
+    if (newCat.trim() && !customCategories.includes(newCat.trim())) {
+      onAddCategory(newCat.trim());
+      setCategory(newCat.trim());
+      setNewCat('');
+    }
   };
 
   return (
@@ -134,8 +143,9 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onAdd, onClose
           </div>
 
           {!isFixed && (
-            <div className="space-y-3">
+            <div className="space-y-4">
               <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] block">Categoria</label>
+              
               <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto custom-scrollbar p-1">
                 {customCategories.map(cat => (
                   <button
@@ -151,6 +161,23 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onAdd, onClose
                     {cat}
                   </button>
                 ))}
+              </div>
+
+              <div className="flex gap-2">
+                <input 
+                  type="text"
+                  value={newCat}
+                  onChange={(e) => setNewCat(e.target.value)}
+                  placeholder="Nova categoria..."
+                  className="flex-1 px-3 py-2 rounded-xl border border-slate-200 text-[10px] font-bold focus:outline-none focus:border-slate-400"
+                />
+                <button 
+                  type="button"
+                  onClick={handleAddCustomCategory}
+                  className="px-4 py-2 bg-slate-800 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-slate-700 transition-colors"
+                >
+                  <i className="fa-solid fa-plus mr-1"></i> Criar
+                </button>
               </div>
             </div>
           )}
