@@ -24,8 +24,9 @@ export const getMonthLimits = () => {
 
 export const calculateFinances = (transactions: Transaction[]) => {
   const { year, month, now } = getMonthLimits();
-  // String format YYYY-MM-DD for comparison
-  const todayStr = now.toISOString().split('T')[0];
+  
+  // Cria string de comparação YYYY-MM-DD baseada no fuso horário local do dispositivo
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
   let onHand = 0;
   let totalIncome = 0;
@@ -34,7 +35,7 @@ export const calculateFinances = (transactions: Transaction[]) => {
 
   transactions.forEach((t) => {
     const tDate = new Date(t.date + 'T12:00:00');
-    // Only process transactions from current month for metrics
+    // Apenas processa transações do mês atual para as métricas do dashboard
     if (tDate.getFullYear() === year && tDate.getMonth() === month) {
       const isIncome = t.type === 'INCOME' || t.type === 'PROSPECT_INCOME';
       const isExpense = t.type === 'EXPENSE' || t.type === 'PROSPECT_EXPENSE';
@@ -42,13 +43,12 @@ export const calculateFinances = (transactions: Transaction[]) => {
       if (isIncome) totalIncome += t.amount;
       if (isExpense) totalExpense += t.amount;
 
-      // On Hand (Dinheiro real hoje): Apenas entradas passadas - saídas passadas
-      // Note: Prospectos futuros não entram no onHand
+      // On Hand (Dinheiro real hoje): Apenas entradas passadas/hoje - saídas passadas/hoje
       if (t.date <= todayStr) {
         if (t.type === 'INCOME') onHand += t.amount;
         if (t.type === 'EXPENSE') onHand -= t.amount;
       } else {
-        // Gastos futuros (Compromissos pendentes)
+        // Gastos futuros (Compromissos pendentes a partir de amanhã)
         if (isExpense) futureExpenses += t.amount;
       }
     }
