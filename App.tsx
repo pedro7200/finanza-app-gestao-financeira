@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Transaction, Tab } from './types';
 import { TransactionForm } from './components/TransactionForm';
 import { FinancialCalendar } from './components/FinancialCalendar';
@@ -10,6 +10,7 @@ import { calculateFinances, formatCurrency, formatDate, getCategoryTotals, isTra
 const App: React.FC = () => {
   const [viewingMonth, setViewingMonth] = useState(new Date().getMonth());
   const [viewingYear, setViewingYear] = useState(new Date().getFullYear());
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
     const saved = localStorage.getItem('finanza_v13_data');
@@ -20,7 +21,6 @@ const App: React.FC = () => {
     const cutoff = new Date(now.getFullYear(), now.getMonth() - 3, 1);
     
     return data.filter(t => {
-      // Transações fixas não são removidas por data, apenas transações pontuais antigas
       if (t.isFixed) return true;
       const tDate = new Date(t.date + 'T12:00:00');
       return tDate >= cutoff;
@@ -67,7 +67,6 @@ const App: React.FC = () => {
   };
 
   const filteredExtract = useMemo(() => {
-    // Para o extrato, mostramos tanto fixas quanto normais que pertencem ao mês visualizado
     return transactions.filter(t => isTransactionInMonth(t, viewingYear, viewingMonth))
       .sort((a,b) => b.date.localeCompare(a.date));
   }, [transactions, viewingYear, viewingMonth]);
@@ -89,9 +88,39 @@ const App: React.FC = () => {
 
   const dayBalance = useMemo(() => {
     return dayTransactions.reduce((acc, t) => {
-      return t.type === 'INCOME' ? acc + t.amount : acc - t.amount;
+      return t.type.includes('INCOME') ? acc + t.amount : acc - t.amount;
     }, 0);
   }, [dayTransactions]);
+
+  const exportBackup = () => {
+    const dataStr = JSON.stringify({ transactions, customCategories }, null, 2);
+    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+    const exportFileDefaultName = `finanza_backup_${new Date().toISOString().split('T')[0]}.json`;
+    const linkElement = document.createElement('a');
+    linkElement.setAttribute('href', dataUri);
+    linkElement.setAttribute('download', exportFileDefaultName);
+    linkElement.click();
+  };
+
+  const importBackup = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const json = JSON.parse(e.target?.result as string);
+        if (json.transactions && Array.isArray(json.transactions)) {
+          setTransactions(json.transactions);
+          if (json.customCategories) setCustomCategories(json.customCategories);
+          alert('Backup restaurado com sucesso!');
+          setIsSettingsOpen(false);
+        }
+      } catch (err) {
+        alert('Erro ao ler o arquivo de backup. Verifique se o formato está correto.');
+      }
+    };
+    reader.readAsText(file);
+  };
 
   const tabConfig = {
     home: { icon: 'fa-house', label: 'Início' },
@@ -139,7 +168,6 @@ const App: React.FC = () => {
                  </div>
               </div>
               
-              {/* Card de Entradas solicitado */}
               <div className="bg-emerald-500 p-6 rounded-3xl text-white shadow-lg flex items-center justify-between overflow-hidden relative">
                  <div className="relative z-10">
                     <p className="text-[8px] font-bold text-emerald-100 uppercase tracking-widest mb-1 opacity-80">Total de Entradas do Mês</p>
@@ -184,6 +212,7 @@ const App: React.FC = () => {
           </div>
         )}
 
+        {/* Demais abas mantidas conforme lógica anterior */}
         {activeTab === 'extract' && (
           <div className="space-y-4 animate-in fade-in duration-500">
             <h2 className="text-lg font-black text-slate-800 px-1 uppercase tracking-tight">Extrato: {months[viewingMonth]}</h2>
@@ -191,7 +220,7 @@ const App: React.FC = () => {
               {filteredExtract.map(t => (
                 <div key={t.id + (t.isFixed ? '-fixed' : '')} className="bg-white p-5 rounded-2xl border-2 border-slate-50 flex items-center justify-between shadow-sm group hover:border-blue-100 transition-all">
                   <div className="flex items-center gap-4">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${t.type === 'INCOME' || t.type === 'PROSPECT_INCOME' ? 'bg-emerald-50 text-emerald-500' : 'bg-rose-50 text-rose-500'}`}>
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${t.type.includes('INCOME') ? 'bg-emerald-50 text-emerald-500' : 'bg-rose-50 text-rose-500'}`}>
                       <i className={`fa-solid ${t.type.includes('INCOME') ? 'fa-arrow-trend-up' : 'fa-arrow-trend-down'}`}></i>
                     </div>
                     <div>
@@ -206,11 +235,6 @@ const App: React.FC = () => {
                   </div>
                 </div>
               ))}
-              {filteredExtract.length === 0 && (
-                <div className="text-center py-20 bg-white rounded-3xl border-2 border-dashed border-slate-100">
-                   <p className="text-slate-300 text-xs font-bold uppercase tracking-widest">Nenhum lançamento este mês</p>
-                </div>
-              )}
             </div>
           </div>
         )}
@@ -221,9 +245,7 @@ const App: React.FC = () => {
              {selectedDay && (
                <div className="bg-white p-6 rounded-3xl border-2 border-slate-100 shadow-xl animate-in slide-in-from-bottom-4 duration-300">
                   <div className="flex justify-between items-center mb-5 border-b border-slate-50 pb-4">
-                    <div>
-                      <h3 className="text-base font-black text-slate-800">{formatDate(selectedDay)}</h3>
-                    </div>
+                    <div><h3 className="text-base font-black text-slate-800">{formatDate(selectedDay)}</h3></div>
                     <div className="text-right">
                        <p className={`text-sm font-bold ${dayBalance >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
                          {formatCurrency(dayBalance)}
@@ -265,13 +287,11 @@ const App: React.FC = () => {
                         </div>
                       </div>
                       <div className="h-2 w-full bg-slate-50 rounded-full overflow-hidden">
-                        <div className="h-full bg-blue-500 transition-all duration-1000" style={{width: `${perc}%`}}></div>
+                        <div className="h-full bg-blue-500" style={{width: `${perc}%`}}></div>
                       </div>
                     </div>
                   );
-                }) : (
-                  <p className="text-center py-10 text-slate-300 text-xs font-bold uppercase">Lance despesas para ver a análise</p>
-                )}
+                }) : <p className="text-center py-10 text-slate-300 text-xs font-bold uppercase">Sem dados para análise</p>}
              </div>
           </div>
         )}
@@ -283,9 +303,7 @@ const App: React.FC = () => {
               {transactions.filter(t => t.isFixed).map(t => (
                 <div key={t.id} className="bg-white p-5 rounded-2xl border-2 border-slate-50 flex items-center justify-between shadow-sm">
                   <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 bg-blue-50 text-blue-500 rounded-xl flex items-center justify-center">
-                      <i className="fa-solid fa-sync"></i>
-                    </div>
+                    <div className="w-10 h-10 bg-blue-50 text-blue-500 rounded-xl flex items-center justify-center"><i className="fa-solid fa-sync"></i></div>
                     <div>
                       <p className="font-bold text-sm text-slate-700">{t.description}</p>
                       <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
@@ -304,6 +322,7 @@ const App: React.FC = () => {
         )}
       </main>
 
+      {/* Navegação */}
       <nav className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-xl border-t border-slate-100 pb-8 pt-4 px-4 z-40">
         <div className="max-w-xl mx-auto flex items-center justify-between gap-1">
           {(Object.entries(tabConfig) as [Tab, any][]).map(([id, cfg]) => (
@@ -321,40 +340,41 @@ const App: React.FC = () => {
         </div>
       </nav>
 
+      {/* Modal de Configurações Atualizado com Import/Export Real */}
       {isSettingsOpen && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-50 flex items-center justify-center p-6">
            <div className="bg-white w-full max-w-sm rounded-3xl p-8 shadow-2xl border border-slate-100">
               <div className="flex justify-between items-center mb-8">
-                 <h2 className="text-xl font-bold text-slate-800 uppercase tracking-tight">Ajustes do App</h2>
+                 <h2 className="text-xl font-bold text-slate-800 uppercase tracking-tight">Gerenciar Dados</h2>
                  <button onClick={() => setIsSettingsOpen(false)} className="text-slate-300 hover:text-slate-500">
                     <i className="fa-solid fa-xmark text-xl"></i>
                  </button>
               </div>
               
               <div className="space-y-6">
-                 {/* Seleção de Mês e Ano */}
                  <div className="space-y-4 p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Alterar Mês de Visualização</p>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Mês de Visualização</p>
                     <div className="grid grid-cols-2 gap-2">
-                       <select 
-                        value={viewingMonth} 
-                        onChange={(e) => setViewingMonth(parseInt(e.target.value))}
-                        className="bg-white border border-slate-200 p-2 rounded-xl text-xs font-bold outline-none"
-                       >
+                       <select value={viewingMonth} onChange={(e) => setViewingMonth(parseInt(e.target.value))} className="bg-white border border-slate-200 p-2 rounded-xl text-xs font-bold outline-none">
                          {months.map((m, i) => <option key={m} value={i}>{m}</option>)}
                        </select>
-                       <select 
-                        value={viewingYear} 
-                        onChange={(e) => setViewingYear(parseInt(e.target.value))}
-                        className="bg-white border border-slate-200 p-2 rounded-xl text-xs font-bold outline-none"
-                       >
+                       <select value={viewingYear} onChange={(e) => setViewingYear(parseInt(e.target.value))} className="bg-white border border-slate-200 p-2 rounded-xl text-xs font-bold outline-none">
                          {years.map(y => <option key={y} value={y}>{y}</option>)}
                        </select>
                     </div>
                  </div>
 
                  <div className="space-y-3">
-                   <button onClick={() => { localStorage.clear(); window.location.reload(); }} className="w-full text-[10px] font-bold text-rose-400 uppercase tracking-widest py-4 border-2 border-rose-50 rounded-2xl">Zerar Banco de Dados</button>
+                   <button onClick={exportBackup} className="w-full flex items-center justify-center gap-3 bg-white border-2 border-slate-100 py-4 rounded-2xl text-[10px] font-bold text-slate-700 uppercase tracking-widest hover:bg-slate-50 transition-all">
+                      <i className="fa-solid fa-download"></i> Exportar Backup (JSON)
+                   </button>
+                   
+                   <input type="file" accept=".json" ref={fileInputRef} onChange={importBackup} className="hidden" />
+                   <button onClick={() => fileInputRef.current?.click()} className="w-full flex items-center justify-center gap-3 bg-white border-2 border-slate-100 py-4 rounded-2xl text-[10px] font-bold text-blue-500 uppercase tracking-widest hover:bg-slate-50 transition-all">
+                      <i className="fa-solid fa-upload"></i> Importar Backup (JSON)
+                   </button>
+
+                   <button onClick={() => { if(window.confirm('Isso apagará TUDO permanentemente. Tem certeza?')) { localStorage.clear(); window.location.reload(); } }} className="w-full text-[10px] font-bold text-rose-400 uppercase tracking-widest py-4 border-2 border-rose-50 rounded-2xl">Zerar Banco de Dados</button>
                  </div>
               </div>
            </div>
