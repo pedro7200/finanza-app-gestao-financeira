@@ -5,15 +5,30 @@ import { TransactionForm } from './components/TransactionForm';
 import { FinancialCalendar } from './components/FinancialCalendar';
 import { SummaryHeader } from './components/SummaryHeader';
 import { FinancialTips } from './components/FinancialTips';
-import { calculateFinances, formatCurrency, formatDate, getCategoryTotals } from './utils';
+import { calculateFinances, formatCurrency, formatDate, getCategoryTotals, isTransactionInMonth } from './utils';
 
 const App: React.FC = () => {
+  const [viewingMonth, setViewingMonth] = useState(new Date().getMonth());
+  const [viewingYear, setViewingYear] = useState(new Date().getFullYear());
+
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
-    const saved = localStorage.getItem('finanza_v12_data');
-    return saved ? JSON.parse(saved) : [];
+    const saved = localStorage.getItem('finanza_v13_data');
+    let data: Transaction[] = saved ? JSON.parse(saved) : [];
+    
+    // SISTEMA DE RETENÇÃO: Guardar apenas dados dos últimos 3 meses em relação ao mês ATUAL do sistema
+    const now = new Date();
+    const cutoff = new Date(now.getFullYear(), now.getMonth() - 3, 1);
+    
+    return data.filter(t => {
+      // Transações fixas não são removidas por data, apenas transações pontuais antigas
+      if (t.isFixed) return true;
+      const tDate = new Date(t.date + 'T12:00:00');
+      return tDate >= cutoff;
+    });
   });
+
   const [customCategories, setCustomCategories] = useState<string[]>(() => {
-    const saved = localStorage.getItem('finanza_v12_cats');
+    const saved = localStorage.getItem('finanza_v13_cats');
     return saved ? JSON.parse(saved) : ['Alimentação', 'Transporte', 'Saúde', 'Lazer', 'Moradia'];
   });
 
@@ -24,18 +39,12 @@ const App: React.FC = () => {
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
 
   useEffect(() => {
-    localStorage.setItem('finanza_v12_data', JSON.stringify(transactions));
-    localStorage.setItem('finanza_v12_cats', JSON.stringify(customCategories));
+    localStorage.setItem('finanza_v13_data', JSON.stringify(transactions));
+    localStorage.setItem('finanza_v13_cats', JSON.stringify(customCategories));
   }, [transactions, customCategories]);
 
-  const stats = useMemo(() => calculateFinances(transactions), [transactions]);
-  const categoryTotals = useMemo(() => getCategoryTotals(transactions), [transactions]);
-
-  const fixedCostsTotal = useMemo(() => {
-    return transactions
-      .filter(t => t.isFixed && t.type === 'EXPENSE')
-      .reduce((acc, t) => acc + t.amount, 0);
-  }, [transactions]);
+  const stats = useMemo(() => calculateFinances(transactions, viewingYear, viewingMonth), [transactions, viewingYear, viewingMonth]);
+  const categoryTotals = useMemo(() => getCategoryTotals(transactions, viewingYear, viewingMonth), [transactions, viewingYear, viewingMonth]);
 
   const handleAdd = (t: Transaction) => {
     if (editingTransaction) {
@@ -57,16 +66,11 @@ const App: React.FC = () => {
     setIsFormOpen(true);
   };
 
-  // Filtragem do extrato para o mês atual
   const filteredExtract = useMemo(() => {
-    const now = new Date();
-    const currentMonth = now.getMonth();
-    const currentYear = now.getFullYear();
-    return transactions.filter(t => {
-      const d = new Date(t.date + 'T12:00:00');
-      return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
-    }).sort((a,b) => b.date.localeCompare(a.date));
-  }, [transactions]);
+    // Para o extrato, mostramos tanto fixas quanto normais que pertencem ao mês visualizado
+    return transactions.filter(t => isTransactionInMonth(t, viewingYear, viewingMonth))
+      .sort((a,b) => b.date.localeCompare(a.date));
+  }, [transactions, viewingYear, viewingMonth]);
 
   const handleDayClick = (date: string) => {
     setSelectedDay(date);
@@ -74,7 +78,13 @@ const App: React.FC = () => {
 
   const dayTransactions = useMemo(() => {
     if (!selectedDay) return [];
-    return transactions.filter(t => t.date === selectedDay);
+    const [y, m, d] = selectedDay.split('-').map(Number);
+    return transactions.filter(t => {
+      if (t.isFixed) {
+        return isTransactionInMonth(t, y, m-1) && t.fixedDay === d;
+      }
+      return t.date === selectedDay;
+    });
   }, [transactions, selectedDay]);
 
   const dayBalance = useMemo(() => {
@@ -87,9 +97,12 @@ const App: React.FC = () => {
     home: { icon: 'fa-house', label: 'Início' },
     extract: { icon: 'fa-receipt', label: 'Extrato' },
     calendar: { icon: 'fa-calendar', label: 'Fluxo' },
-    analytics: { icon: 'fa-chart-pie', label: 'Metas' },
+    analytics: { icon: 'fa-chart-pie', label: 'Análise' },
     fixed: { icon: 'fa-clock', label: 'Fixos' }
   };
+
+  const months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+  const years = [2025, 2026, 2027];
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50">
@@ -100,6 +113,8 @@ const App: React.FC = () => {
         futureExpenses={stats.futureExpenses} 
         onOpenSettings={() => setIsSettingsOpen(true)}
         hideSummary={activeTab === 'home'}
+        viewMonth={viewingMonth}
+        viewYear={viewingYear}
       />
 
       <main className="flex-1 w-full max-w-xl mx-auto px-4 py-6 mb-24">
@@ -110,52 +125,52 @@ const App: React.FC = () => {
                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-1">Sua Gestão Financeira Completa</p>
             </header>
 
-            <div className="grid grid-cols-2 gap-3">
-               <div className="bg-white p-6 rounded-3xl border-2 border-slate-100 shadow-sm">
-                  <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mb-1">Saldo em Mãos</p>
-                  <h2 className={`text-xl font-bold tracking-tight ${stats.onHand >= 0 ? 'text-slate-700' : 'text-rose-500'}`}>
-                    {formatCurrency(stats.onHand)}
-                  </h2>
-               </div>
-               <div className="bg-slate-800 p-6 rounded-3xl text-white shadow-xl">
-                  <p className="text-[8px] font-bold text-slate-300 uppercase tracking-widest mb-1 opacity-70">Saldo Final Previsto</p>
-                  <h2 className="text-xl font-bold tracking-tight">{formatCurrency(stats.projectedTotal)}</h2>
-               </div>
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                 <div className="bg-white p-6 rounded-3xl border-2 border-slate-100 shadow-sm">
+                    <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mb-1">Saldo em Mãos</p>
+                    <h2 className={`text-xl font-bold tracking-tight ${stats.onHand >= 0 ? 'text-slate-700' : 'text-rose-500'}`}>
+                      {formatCurrency(stats.onHand)}
+                    </h2>
+                 </div>
+                 <div className="bg-slate-800 p-6 rounded-3xl text-white shadow-xl">
+                    <p className="text-[8px] font-bold text-slate-300 uppercase tracking-widest mb-1 opacity-70">Saldo Final Previsto</p>
+                    <h2 className="text-xl font-bold tracking-tight">{formatCurrency(stats.projectedTotal)}</h2>
+                 </div>
+              </div>
+              
+              {/* Card de Entradas solicitado */}
+              <div className="bg-emerald-500 p-6 rounded-3xl text-white shadow-lg flex items-center justify-between overflow-hidden relative">
+                 <div className="relative z-10">
+                    <p className="text-[8px] font-bold text-emerald-100 uppercase tracking-widest mb-1 opacity-80">Total de Entradas do Mês</p>
+                    <h2 className="text-2xl font-black tracking-tight">{formatCurrency(stats.monthlyIncome)}</h2>
+                 </div>
+                 <i className="fa-solid fa-arrow-trend-up text-4xl text-emerald-400 opacity-40 relative z-10"></i>
+                 <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-400 rounded-full blur-3xl -mr-16 -mt-16 opacity-50"></div>
+              </div>
             </div>
 
-            {/* Componente de Dicas Financeiras (Substituindo a IA) */}
             <FinancialTips />
 
-            {/* Resumo de Custos */}
             <div className="bg-white p-6 rounded-3xl border-2 border-slate-100 shadow-sm space-y-4">
                <div className="flex items-center gap-3 mb-2">
                   <div className="w-9 h-9 bg-rose-50 text-rose-500 rounded-xl flex items-center justify-center">
                     <i className="fa-solid fa-layer-group text-sm"></i>
                   </div>
                   <div>
-                    <h3 className="text-sm font-bold text-slate-700">Custos do Mês</h3>
+                    <h3 className="text-sm font-bold text-slate-700">Fluxo do Mês</h3>
                     <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Compromissos Pendentes</p>
                   </div>
                </div>
                
                <div className="grid grid-cols-2 gap-4 pt-2">
                   <div className="bg-slate-50 p-4 rounded-2xl">
-                    <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mb-1">Custos Fixos</p>
-                    <p className="text-base font-bold text-slate-700">{formatCurrency(fixedCostsTotal)}</p>
+                    <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Gastos</p>
+                    <p className="text-base font-bold text-slate-700">{formatCurrency(stats.monthlyExpenses)}</p>
                   </div>
                   <div className="bg-slate-50 p-4 rounded-2xl">
-                    <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mb-1">Pendentes (Variáveis)</p>
+                    <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mb-1">Ainda a Pagar</p>
                     <p className="text-base font-bold text-rose-400">{formatCurrency(stats.futureExpenses)}</p>
-                  </div>
-               </div>
-
-               <div className="pt-3">
-                  <div className="flex justify-between items-center mb-1.5">
-                    <span className="text-[9px] font-bold text-slate-400 uppercase">Saúde Financeira</span>
-                    <span className="text-xs font-bold text-slate-700">{stats.healthScore.toFixed(0)}%</span>
-                  </div>
-                  <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
-                    <div className="h-full bg-blue-500 transition-all duration-1000" style={{width: `${stats.healthScore}%`}}></div>
                   </div>
                </div>
             </div>
@@ -171,27 +186,23 @@ const App: React.FC = () => {
 
         {activeTab === 'extract' && (
           <div className="space-y-4 animate-in fade-in duration-500">
-            <h2 className="text-lg font-black text-slate-800 px-1 uppercase tracking-tight">Extrato Mensal</h2>
+            <h2 className="text-lg font-black text-slate-800 px-1 uppercase tracking-tight">Extrato: {months[viewingMonth]}</h2>
             <div className="space-y-2">
               {filteredExtract.map(t => (
-                <div key={t.id} className="bg-white p-5 rounded-2xl border-2 border-slate-50 flex items-center justify-between shadow-sm group hover:border-blue-100 transition-all">
+                <div key={t.id + (t.isFixed ? '-fixed' : '')} className="bg-white p-5 rounded-2xl border-2 border-slate-50 flex items-center justify-between shadow-sm group hover:border-blue-100 transition-all">
                   <div className="flex items-center gap-4">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${t.type === 'INCOME' ? 'bg-emerald-50 text-emerald-500' : 'bg-rose-50 text-rose-500'}`}>
-                      <i className={`fa-solid ${t.type === 'INCOME' ? 'fa-arrow-trend-up' : 'fa-arrow-trend-down'}`}></i>
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${t.type === 'INCOME' || t.type === 'PROSPECT_INCOME' ? 'bg-emerald-50 text-emerald-500' : 'bg-rose-50 text-rose-500'}`}>
+                      <i className={`fa-solid ${t.type.includes('INCOME') ? 'fa-arrow-trend-up' : 'fa-arrow-trend-down'}`}></i>
                     </div>
                     <div>
-                      <p className="text-sm font-bold text-slate-700">{t.description}</p>
-                      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{t.category} • {formatDate(t.date)}</p>
+                      <p className="text-sm font-bold text-slate-700">{t.description} {t.isFixed && <span className="text-[8px] bg-blue-100 text-blue-500 px-1.5 py-0.5 rounded ml-1">FIXO</span>}</p>
+                      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{t.isFixed ? 'Custo Fixo' : t.category} • {formatDate(t.date)}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-4">
-                    <p className={`text-sm font-black ${t.type === 'INCOME' ? 'text-emerald-500' : 'text-slate-700'}`}>
-                      {t.type === 'INCOME' ? '+' : '-'}{formatCurrency(t.amount)}
+                    <p className={`text-sm font-black ${t.type.includes('INCOME') ? 'text-emerald-500' : 'text-slate-700'}`}>
+                      {t.type.includes('INCOME') ? '+' : '-'}{formatCurrency(t.amount)}
                     </p>
-                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                       <button onClick={() => handleEdit(t)} className="p-2 text-slate-300 hover:text-blue-500"><i className="fa-solid fa-pen text-[10px]"></i></button>
-                       <button onClick={() => handleDelete(t.id)} className="p-2 text-slate-300 hover:text-rose-500"><i className="fa-solid fa-trash text-[10px]"></i></button>
-                    </div>
                   </div>
                 </div>
               ))}
@@ -206,7 +217,7 @@ const App: React.FC = () => {
 
         {activeTab === 'calendar' && (
           <div className="space-y-6 animate-in fade-in duration-500">
-             <FinancialCalendar transactions={transactions} onDateClick={handleDayClick} />
+             <FinancialCalendar transactions={transactions} onDateClick={handleDayClick} viewMonth={viewingMonth} viewYear={viewingYear} />
              {selectedDay && (
                <div className="bg-white p-6 rounded-3xl border-2 border-slate-100 shadow-xl animate-in slide-in-from-bottom-4 duration-300">
                   <div className="flex justify-between items-center mb-5 border-b border-slate-50 pb-4">
@@ -223,8 +234,8 @@ const App: React.FC = () => {
                     {dayTransactions.map(t => (
                       <div key={t.id} className="flex items-center justify-between p-3 rounded-2xl bg-slate-50">
                          <div className="flex items-center gap-3">
-                           <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs ${t.type === 'INCOME' ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'}`}>
-                             <i className={`fa-solid ${t.type === 'INCOME' ? 'fa-plus' : 'fa-minus'}`}></i>
+                           <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs ${t.type.includes('INCOME') ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'}`}>
+                             <i className={`fa-solid ${t.type.includes('INCOME') ? 'fa-plus' : 'fa-minus'}`}></i>
                            </div>
                            <p className="text-xs font-bold text-slate-700">{t.description}</p>
                          </div>
@@ -240,7 +251,7 @@ const App: React.FC = () => {
 
         {activeTab === 'analytics' && (
           <div className="space-y-6 animate-in fade-in duration-500">
-             <h2 className="text-lg font-black text-slate-800 px-1 uppercase tracking-tight">Análise de Gastos</h2>
+             <h2 className="text-lg font-black text-slate-800 px-1 uppercase tracking-tight">Análise: {months[viewingMonth]}</h2>
              <div className="bg-white p-7 rounded-3xl border-2 border-slate-100 space-y-6">
                 {(Object.entries(categoryTotals) as [string, number][]).length > 0 ? (Object.entries(categoryTotals) as [string, number][]).sort((a,b) => b[1] - a[1]).map(([cat, val]) => {
                   const perc = stats.monthlyExpenses > 0 ? (val / stats.monthlyExpenses) * 100 : 0;
@@ -267,7 +278,7 @@ const App: React.FC = () => {
 
         {activeTab === 'fixed' && (
           <div className="space-y-4 animate-in fade-in duration-500">
-            <h2 className="text-lg font-black text-slate-800 px-1 uppercase tracking-tight">Custos Fixos</h2>
+            <h2 className="text-lg font-black text-slate-800 px-1 uppercase tracking-tight">Custos Fixos Ativos</h2>
             <div className="space-y-2">
               {transactions.filter(t => t.isFixed).map(t => (
                 <div key={t.id} className="bg-white p-5 rounded-2xl border-2 border-slate-50 flex items-center justify-between shadow-sm">
@@ -277,7 +288,9 @@ const App: React.FC = () => {
                     </div>
                     <div>
                       <p className="font-bold text-sm text-slate-700">{t.description}</p>
-                      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Recorrência Mensal</p>
+                      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+                        {t.recurrenceMonths === 0 ? 'Recorrência Infinita' : `Repete por ${t.recurrenceMonths} meses`}
+                      </p>
                     </div>
                   </div>
                   <div className="text-right">
@@ -286,11 +299,6 @@ const App: React.FC = () => {
                   </div>
                 </div>
               ))}
-              {transactions.filter(t => t.isFixed).length === 0 && (
-                <div className="text-center py-20 text-slate-200">
-                   <p className="text-xs font-bold uppercase tracking-widest">Nenhum custo fixo configurado</p>
-                </div>
-              )}
             </div>
           </div>
         )}
@@ -317,17 +325,37 @@ const App: React.FC = () => {
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-50 flex items-center justify-center p-6">
            <div className="bg-white w-full max-w-sm rounded-3xl p-8 shadow-2xl border border-slate-100">
               <div className="flex justify-between items-center mb-8">
-                 <h2 className="text-xl font-bold text-slate-800 uppercase tracking-tight">Gerenciar App</h2>
+                 <h2 className="text-xl font-bold text-slate-800 uppercase tracking-tight">Ajustes do App</h2>
                  <button onClick={() => setIsSettingsOpen(false)} className="text-slate-300 hover:text-slate-500">
                     <i className="fa-solid fa-xmark text-xl"></i>
                  </button>
               </div>
-              <div className="space-y-4">
-                 <button onClick={() => { if(window.confirm('Exportar backup?')) { const data = JSON.stringify(transactions); alert('Dados salvos no log do navegador por enquanto.'); console.log(data); } }} className="w-full flex items-center gap-3 p-4 rounded-2xl border-2 border-slate-50 text-left">
-                    <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-500 flex items-center justify-center"><i className="fa-solid fa-download"></i></div>
-                    <div><p className="text-xs font-bold text-slate-700 uppercase">Exportar Dados</p></div>
-                 </button>
-                 <button onClick={() => { if(window.confirm('Zerar tudo?')) { localStorage.clear(); window.location.reload(); } }} className="w-full text-[10px] font-bold text-rose-400 uppercase tracking-widest py-4 border-2 border-rose-50 rounded-2xl">Zerar Banco de Dados</button>
+              
+              <div className="space-y-6">
+                 {/* Seleção de Mês e Ano */}
+                 <div className="space-y-4 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Alterar Mês de Visualização</p>
+                    <div className="grid grid-cols-2 gap-2">
+                       <select 
+                        value={viewingMonth} 
+                        onChange={(e) => setViewingMonth(parseInt(e.target.value))}
+                        className="bg-white border border-slate-200 p-2 rounded-xl text-xs font-bold outline-none"
+                       >
+                         {months.map((m, i) => <option key={m} value={i}>{m}</option>)}
+                       </select>
+                       <select 
+                        value={viewingYear} 
+                        onChange={(e) => setViewingYear(parseInt(e.target.value))}
+                        className="bg-white border border-slate-200 p-2 rounded-xl text-xs font-bold outline-none"
+                       >
+                         {years.map(y => <option key={y} value={y}>{y}</option>)}
+                       </select>
+                    </div>
+                 </div>
+
+                 <div className="space-y-3">
+                   <button onClick={() => { localStorage.clear(); window.location.reload(); }} className="w-full text-[10px] font-bold text-rose-400 uppercase tracking-widest py-4 border-2 border-rose-50 rounded-2xl">Zerar Banco de Dados</button>
+                 </div>
               </div>
            </div>
         </div>

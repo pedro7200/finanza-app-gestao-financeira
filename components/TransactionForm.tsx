@@ -17,6 +17,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onAdd, onClose
   const [category, setCategory] = useState(initialData?.category || 'Alimentação');
   const [date, setDate] = useState(initialData?.date || new Date().toISOString().split('T')[0]);
   const [isFixed, setIsFixed] = useState(initialData?.isFixed || false);
+  const [recurrence, setRecurrence] = useState(initialData?.recurrenceMonths?.toString() || '0');
   const [newCat, setNewCat] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -31,7 +32,8 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onAdd, onClose
       category: isFixed ? 'Custo Fixo' : category,
       date,
       isFixed,
-      fixedDay: isFixed ? new Date(date + 'T12:00:00').getDate() : undefined,
+      fixedDay: new Date(date + 'T12:00:00').getDate(),
+      recurrenceMonths: isFixed ? parseInt(recurrence) : undefined,
     };
 
     onAdd(transactionData);
@@ -59,7 +61,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onAdd, onClose
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
-          {/* Tipo de Transação */}
           <div className="flex bg-slate-100 p-1.5 rounded-2xl border border-slate-200">
             {['INCOME', 'EXPENSE'].map((t) => (
               <button
@@ -78,21 +79,19 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onAdd, onClose
           </div>
 
           <div className="space-y-4">
-            {/* Descrição */}
             <div>
-              <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] mb-1.5 block">O que é este lançamento?</label>
+              <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] mb-1.5 block">Descrição</label>
               <input
                 type="text" 
                 required 
                 value={description} 
                 onChange={(e) => setDescription(e.target.value)}
                 className="w-full px-4 py-3.5 rounded-xl border-2 border-slate-200 bg-white text-slate-700 focus:border-slate-800 focus:outline-none transition-all text-sm shadow-sm"
-                placeholder="Ex: Aluguel, Supermercado, Salário..."
+                placeholder="O que é este lançamento?"
               />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              {/* Valor */}
               <div>
                 <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] mb-1.5 block">Valor (R$)</label>
                 <input
@@ -105,9 +104,8 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onAdd, onClose
                   placeholder="0,00"
                 />
               </div>
-              {/* Data */}
               <div>
-                <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] mb-1.5 block">Data</label>
+                <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] mb-1.5 block">Data Inicial</label>
                 <input
                   type="date" 
                   required 
@@ -119,19 +117,31 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onAdd, onClose
             </div>
           </div>
 
-          {/* Custo Fixo */}
-          <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 flex items-center gap-3">
-             <input 
-               type="checkbox" 
-               id="fixed" 
-               checked={isFixed} 
-               onChange={(e) => setIsFixed(e.target.checked)}
-               className="w-5 h-5 rounded-lg border-slate-300 text-slate-800 focus:ring-slate-800 transition-all cursor-pointer" 
-             />
-             <label htmlFor="fixed" className="text-xs font-bold text-slate-700 cursor-pointer select-none">Marcar como custo fixo mensal</label>
+          <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+             <div className="flex items-center gap-3">
+               <input 
+                 type="checkbox" 
+                 id="fixed" 
+                 checked={isFixed} 
+                 onChange={(e) => setIsFixed(e.target.checked)}
+                 className="w-5 h-5 rounded-lg border-slate-300 text-slate-800 focus:ring-slate-800 transition-all cursor-pointer" 
+               />
+               <label htmlFor="fixed" className="text-xs font-bold text-slate-700 cursor-pointer select-none">Custo Fixo Mensal</label>
+             </div>
+             
+             {isFixed && (
+               <div className="pt-2 animate-in fade-in duration-300">
+                  <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Repetir por quantos meses? (0 = sempre)</label>
+                  <input 
+                    type="number" 
+                    value={recurrence} 
+                    onChange={(e) => setRecurrence(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm font-bold"
+                  />
+               </div>
+             )}
           </div>
 
-          {/* Categoria Customizada */}
           {!isFixed && (
             <div className="space-y-3">
               <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] block">Categoria</label>
@@ -150,23 +160,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onAdd, onClose
                     {cat}
                   </button>
                 ))}
-              </div>
-              
-              <div className="flex gap-2 mt-2">
-                <input 
-                  type="text" 
-                  placeholder="Nova categoria..." 
-                  value={newCat}
-                  onChange={(e) => setNewCat(e.target.value)}
-                  className="flex-1 px-4 py-2 rounded-xl border-2 border-slate-200 bg-white text-xs outline-none focus:border-slate-400"
-                />
-                <button 
-                  type="button"
-                  onClick={handleAddNewCategory}
-                  className="bg-slate-100 text-slate-600 px-4 py-2 rounded-xl text-xs font-bold hover:bg-slate-200 transition-colors"
-                >
-                  Criar
-                </button>
               </div>
             </div>
           )}

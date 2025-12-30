@@ -1,37 +1,45 @@
 
 import React, { useMemo } from 'react';
 import { Transaction } from '../types';
-import { getDaysInMonth, getFirstDayOfMonth, getMonthLimits } from '../utils';
+import { getDaysInMonth, getFirstDayOfMonth, isTransactionInMonth } from '../utils';
 
 interface FinancialCalendarProps {
   transactions: Transaction[];
   onDateClick: (date: string) => void;
+  viewMonth: number;
+  viewYear: number;
 }
 
-export const FinancialCalendar: React.FC<FinancialCalendarProps> = ({ transactions, onDateClick }) => {
-  const { year, month } = getMonthLimits();
-  const daysInMonth = getDaysInMonth(year, month);
-  const firstDay = getFirstDayOfMonth(year, month);
-  const monthName = new Intl.DateTimeFormat('pt-BR', { month: 'long' }).format(new Date(year, month));
+export const FinancialCalendar: React.FC<FinancialCalendarProps> = ({ transactions, onDateClick, viewMonth, viewYear }) => {
+  const daysInMonth = getDaysInMonth(viewYear, viewMonth);
+  const firstDay = getFirstDayOfMonth(viewYear, viewMonth);
+  const monthName = new Intl.DateTimeFormat('pt-BR', { month: 'long' }).format(new Date(viewYear, viewMonth));
 
   const dayData = useMemo(() => {
     const map: Record<number, { hasIncome: boolean, hasExpense: boolean, count: number }> = {};
     for (let i = 1; i <= daysInMonth; i++) {
-      const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
-      const dayTrans = transactions.filter(t => t.date === dateStr);
+      const dateStr = `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+      
+      const dayTrans = transactions.filter(t => {
+        if (t.isFixed) {
+          return isTransactionInMonth(t, viewYear, viewMonth) && t.fixedDay === i;
+        }
+        return t.date === dateStr;
+      });
+
       map[i] = {
-        hasIncome: dayTrans.some(t => t.type === 'INCOME'),
-        hasExpense: dayTrans.some(t => t.type === 'EXPENSE'),
+        hasIncome: dayTrans.some(t => t.type.includes('INCOME')),
+        hasExpense: dayTrans.some(t => t.type.includes('EXPENSE')),
         count: dayTrans.length
       };
     }
     return map;
-  }, [transactions, year, month]);
+  }, [transactions, viewYear, viewMonth]);
 
   return (
     <div className="bg-white rounded-[32px] p-6 border-2 border-slate-100 shadow-sm">
       <div className="flex justify-between items-center mb-8 px-2">
-        <h2 className="text-xl font-black text-slate-800 capitalize tracking-tight">{monthName} <span className="text-slate-300">{year}</span></h2>
+        <h2 className="text-xl font-black text-slate-800 capitalize tracking-tight">{monthName} <span className="text-slate-300">{viewYear}</span></h2>
         <div className="flex gap-3">
            <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-emerald-400"></div><span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Ganhos</span></div>
            <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-rose-400"></div><span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Gastos</span></div>
@@ -50,12 +58,12 @@ export const FinancialCalendar: React.FC<FinancialCalendarProps> = ({ transactio
         {Array.from({ length: daysInMonth }).map((_, i) => {
           const day = i + 1;
           const { hasIncome, hasExpense, count } = dayData[day];
-          const isToday = new Date().getDate() === day && new Date().getMonth() === month;
+          const isToday = new Date().getDate() === day && new Date().getMonth() === viewMonth && new Date().getFullYear() === viewYear;
 
           return (
             <button
               key={day}
-              onClick={() => onDateClick(`${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`)}
+              onClick={() => onDateClick(`${viewYear}-${String(viewMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`)}
               className={`relative aspect-square rounded-2xl flex flex-col items-center justify-center transition-all hover:bg-slate-50 border-2 active:scale-95 ${
                 isToday ? 'border-slate-800' : 'border-transparent'
               } ${count > 0 ? 'bg-slate-50/50' : ''}`}

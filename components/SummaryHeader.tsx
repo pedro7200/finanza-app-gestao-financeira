@@ -8,9 +8,13 @@ interface SummaryHeaderProps {
   futureExpenses: number;
   onOpenSettings: () => void;
   hideSummary?: boolean;
+  viewMonth: number;
+  viewYear: number;
 }
 
-export const SummaryHeader: React.FC<SummaryHeaderProps> = ({ onHand, projected, futureExpenses, onOpenSettings, hideSummary }) => {
+export const SummaryHeader: React.FC<SummaryHeaderProps> = ({ 
+  onHand, projected, futureExpenses, onOpenSettings, hideSummary, viewMonth, viewYear 
+}) => {
   const [now, setNow] = useState(new Date());
 
   useEffect(() => {
@@ -27,40 +31,46 @@ export const SummaryHeader: React.FC<SummaryHeaderProps> = ({ onHand, projected,
 
   const formattedTime = now.toLocaleTimeString('pt-BR', {
     hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit'
+    minute: '2-digit'
   });
+
+  const monthName = new Intl.DateTimeFormat('pt-BR', { month: 'long' }).format(new Date(viewYear, viewMonth));
 
   return (
     <div className="sticky top-0 z-30 w-full bg-white border-b border-slate-200 px-4 py-3 shadow-sm">
       <div className="max-w-xl mx-auto flex items-center justify-between gap-3">
         
-        {/* Data e Hora Local (Canto Superior Esquerdo) */}
-        <div className="flex-shrink-0 flex flex-col items-start min-w-[70px]">
-           <span className="text-[10px] font-black text-slate-800 uppercase leading-none">{formattedDate}</span>
-           <span className="text-[9px] font-bold text-slate-400 mt-0.5 tabular-nums leading-none">{formattedTime}</span>
+        {/* Data, Hora e Mês de Referência */}
+        <div className="flex-shrink-0 flex flex-col items-start min-w-[90px]">
+           <div className="flex items-baseline gap-1">
+             <span className="text-[10px] font-black text-slate-800 uppercase leading-none">{formattedDate}</span>
+             <span className="text-[9px] font-bold text-slate-400 tabular-nums leading-none">{formattedTime}</span>
+           </div>
+           <span className="text-[8px] font-bold text-blue-500 uppercase mt-1 tracking-tighter">
+             Exibindo: <span className="font-black">{monthName} {viewYear}</span>
+           </span>
         </div>
 
         {/* Resumo compacto */}
         {!hideSummary ? (
           <div className="flex-1 flex items-center justify-between border border-slate-100 rounded-md bg-slate-50/50 p-1 animate-in slide-in-from-top-1 duration-300">
             <div className="flex-1 text-center border-r border-slate-200/50 px-1">
-              <p className="text-[6px] font-bold text-slate-400 uppercase tracking-widest">Disponível</p>
-              <p className={`text-[10px] font-bold truncate ${onHand >= 0 ? 'text-slate-600' : 'text-rose-500'}`}>
+              <p className="text-[6px] font-bold text-slate-400 uppercase tracking-widest">Saldo Atual</p>
+              <p className={`text-[9px] font-bold truncate ${onHand >= 0 ? 'text-slate-600' : 'text-rose-500'}`}>
                 {formatCurrency(onHand)}
               </p>
             </div>
             
             <div className="flex-1 text-center border-r border-slate-200/50 px-1">
-              <p className="text-[6px] font-bold text-slate-400 uppercase tracking-widest">Meta Mês</p>
-              <p className="text-[10px] font-bold text-blue-500 truncate">
+              <p className="text-[6px] font-bold text-slate-400 uppercase tracking-widest">Projetado</p>
+              <p className="text-[9px] font-bold text-blue-500 truncate">
                 {formatCurrency(projected)}
               </p>
             </div>
 
             <div className="flex-1 text-center px-1">
               <p className="text-[6px] font-bold text-slate-400 uppercase tracking-widest">Pendentes</p>
-              <p className="text-[10px] font-bold text-slate-500 truncate">
+              <p className="text-[9px] font-bold text-slate-500 truncate">
                 {formatCurrency(futureExpenses)}
               </p>
             </div>
