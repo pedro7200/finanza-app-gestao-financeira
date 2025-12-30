@@ -5,7 +5,21 @@ import { TransactionForm } from './components/TransactionForm';
 import { FinancialCalendar } from './components/FinancialCalendar';
 import { SummaryHeader } from './components/SummaryHeader';
 import { FinancialTips } from './components/FinancialTips';
-import { calculateFinances, formatCurrency, formatDate, getCategoryTotals, isTransactionInMonth } from './utils';
+import { calculateFinances, formatCurrency, formatDate, getCategoryTotals, isTransactionInMonth, calculateBalanceAtDate } from './utils';
+
+const CATEGORY_COLORS = [
+  'bg-blue-500', 'bg-emerald-500', 'bg-rose-500', 'bg-amber-500', 
+  'bg-purple-500', 'bg-cyan-500', 'bg-indigo-500', 'bg-orange-500', 
+  'bg-pink-500', 'bg-lime-500', 'bg-violet-500'
+];
+
+const TAB_COLORS: Record<Tab, { active: string; icon: string; label: string }> = {
+  home: { active: 'bg-blue-100 text-blue-700', icon: 'fa-house', label: 'Início' },
+  extract: { active: 'bg-emerald-100 text-emerald-700', icon: 'fa-receipt', label: 'Extrato' },
+  calendar: { active: 'bg-purple-100 text-purple-700', icon: 'fa-calendar', label: 'Fluxo' },
+  analytics: { active: 'bg-amber-100 text-amber-700', icon: 'fa-chart-pie', label: 'Análise' },
+  fixed: { active: 'bg-rose-100 text-rose-700', icon: 'fa-clock', label: 'Fixos' }
+};
 
 const App: React.FC = () => {
   const [viewingMonth, setViewingMonth] = useState(new Date().getMonth());
@@ -16,7 +30,6 @@ const App: React.FC = () => {
     const saved = localStorage.getItem('finanza_v13_data');
     let data: Transaction[] = saved ? JSON.parse(saved) : [];
     
-    // SISTEMA DE RETENÇÃO: Guardar apenas dados dos últimos 3 meses em relação ao mês ATUAL do sistema
     const now = new Date();
     const cutoff = new Date(now.getFullYear(), now.getMonth() - 3, 1);
     
@@ -37,6 +50,7 @@ const App: React.FC = () => {
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const [focusedTransactionId, setFocusedTransactionId] = useState<string | null>(null);
 
   useEffect(() => {
     localStorage.setItem('finanza_v13_data', JSON.stringify(transactions));
@@ -58,12 +72,14 @@ const App: React.FC = () => {
   const handleDelete = (id: string) => {
     if (window.confirm('Deseja excluir este registro?')) {
       setTransactions(prev => prev.filter(t => t.id !== id));
+      setFocusedTransactionId(null);
     }
   };
 
   const handleEdit = (t: Transaction) => {
     setEditingTransaction(t);
     setIsFormOpen(true);
+    setFocusedTransactionId(null);
   };
 
   const filteredExtract = useMemo(() => {
@@ -84,6 +100,11 @@ const App: React.FC = () => {
       }
       return t.date === selectedDay;
     });
+  }, [transactions, selectedDay]);
+
+  const dayCumulativeBalance = useMemo(() => {
+    if (!selectedDay) return 0;
+    return calculateBalanceAtDate(transactions, selectedDay);
   }, [transactions, selectedDay]);
 
   const dayBalance = useMemo(() => {
@@ -122,14 +143,6 @@ const App: React.FC = () => {
     reader.readAsText(file);
   };
 
-  const tabConfig = {
-    home: { icon: 'fa-house', label: 'Início' },
-    extract: { icon: 'fa-receipt', label: 'Extrato' },
-    calendar: { icon: 'fa-calendar', label: 'Fluxo' },
-    analytics: { icon: 'fa-chart-pie', label: 'Análise' },
-    fixed: { icon: 'fa-clock', label: 'Fixos' }
-  };
-
   const months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
   const years = [2025, 2026, 2027];
 
@@ -162,9 +175,9 @@ const App: React.FC = () => {
                       {formatCurrency(stats.onHand)}
                     </h2>
                  </div>
-                 <div className="bg-slate-800 p-6 rounded-3xl text-white shadow-xl">
-                    <p className="text-[8px] font-bold text-slate-300 uppercase tracking-widest mb-1 opacity-70">Saldo Final Previsto</p>
-                    <h2 className="text-xl font-bold tracking-tight">{formatCurrency(stats.projectedTotal)}</h2>
+                 <div className="bg-white p-6 rounded-3xl border-2 border-slate-100 shadow-sm">
+                    <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mb-1">Saldo Final Previsto</p>
+                    <h2 className={`text-xl font-bold tracking-tight ${stats.projectedTotal >= 0 ? 'text-slate-800' : 'text-rose-500'}`}>{formatCurrency(stats.projectedTotal)}</h2>
                  </div>
               </div>
               
@@ -205,34 +218,44 @@ const App: React.FC = () => {
 
             <button 
               onClick={() => { setEditingTransaction(null); setIsFormOpen(true); }}
-              className="w-full bg-slate-800 text-white py-5 rounded-3xl font-bold text-xs shadow-2xl hover:bg-slate-900 transition-all uppercase tracking-[0.2em] flex items-center justify-center gap-3"
+              className="w-full bg-white border-2 border-slate-100 text-slate-800 py-5 rounded-3xl font-bold text-xs shadow-sm hover:bg-slate-50 transition-all uppercase tracking-[0.2em] flex items-center justify-center gap-3"
             >
-              <i className="fa-solid fa-circle-plus text-xl"></i> Adicionar Lançamento
+              <i className="fa-solid fa-circle-plus text-xl text-slate-800"></i> Adicionar Lançamento
             </button>
           </div>
         )}
 
-        {/* Demais abas mantidas conforme lógica anterior */}
         {activeTab === 'extract' && (
           <div className="space-y-4 animate-in fade-in duration-500">
             <h2 className="text-lg font-black text-slate-800 px-1 uppercase tracking-tight">Extrato: {months[viewingMonth]}</h2>
             <div className="space-y-2">
               {filteredExtract.map(t => (
-                <div key={t.id + (t.isFixed ? '-fixed' : '')} className="bg-white p-5 rounded-2xl border-2 border-slate-50 flex items-center justify-between shadow-sm group hover:border-blue-100 transition-all">
-                  <div className="flex items-center gap-4">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${t.type.includes('INCOME') ? 'bg-emerald-50 text-emerald-500' : 'bg-rose-50 text-rose-500'}`}>
-                      <i className={`fa-solid ${t.type.includes('INCOME') ? 'fa-arrow-trend-up' : 'fa-arrow-trend-down'}`}></i>
+                <div key={t.id + (t.isFixed ? '-fixed' : '')} className="flex flex-col">
+                  <div 
+                    onClick={() => setFocusedTransactionId(focusedTransactionId === t.id ? null : t.id)}
+                    className={`bg-white p-5 rounded-2xl border-2 flex items-center justify-between shadow-sm group transition-all cursor-pointer ${focusedTransactionId === t.id ? 'border-blue-400' : 'border-slate-50 hover:border-blue-100'}`}
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${t.type.includes('INCOME') ? 'bg-emerald-50 text-emerald-500' : 'bg-rose-50 text-rose-500'}`}>
+                        <i className={`fa-solid ${t.type.includes('INCOME') ? 'fa-arrow-trend-up' : 'fa-arrow-trend-down'}`}></i>
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-slate-700">{t.description} {t.isFixed && <span className="text-[8px] bg-blue-100 text-blue-500 px-1.5 py-0.5 rounded ml-1">FIXO</span>}</p>
+                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{t.isFixed ? 'Custo Fixo' : t.category} • {formatDate(t.date)}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-sm font-bold text-slate-700">{t.description} {t.isFixed && <span className="text-[8px] bg-blue-100 text-blue-500 px-1.5 py-0.5 rounded ml-1">FIXO</span>}</p>
-                      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{t.isFixed ? 'Custo Fixo' : t.category} • {formatDate(t.date)}</p>
+                    <div className="flex items-center gap-4">
+                      <p className={`text-sm font-black ${t.type.includes('INCOME') ? 'text-emerald-500' : 'text-slate-700'}`}>
+                        {t.type.includes('INCOME') ? '+' : '-'}{formatCurrency(t.amount)}
+                      </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-4">
-                    <p className={`text-sm font-black ${t.type.includes('INCOME') ? 'text-emerald-500' : 'text-slate-700'}`}>
-                      {t.type.includes('INCOME') ? '+' : '-'}{formatCurrency(t.amount)}
-                    </p>
-                  </div>
+                  {focusedTransactionId === t.id && (
+                    <div className="flex gap-2 p-2 bg-slate-100/50 rounded-b-2xl mx-4 animate-in slide-in-from-top-2 duration-200">
+                      <button onClick={(e) => { e.stopPropagation(); handleEdit(t); }} className="flex-1 bg-white text-[9px] font-bold text-slate-600 py-2 rounded-lg border border-slate-200 shadow-sm">EDITAR</button>
+                      <button onClick={(e) => { e.stopPropagation(); handleDelete(t.id); }} className="flex-1 bg-white text-[9px] font-bold text-rose-500 py-2 rounded-lg border border-slate-200 shadow-sm">EXCLUIR</button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -245,10 +268,15 @@ const App: React.FC = () => {
              {selectedDay && (
                <div className="bg-white p-6 rounded-3xl border-2 border-slate-100 shadow-xl animate-in slide-in-from-bottom-4 duration-300">
                   <div className="flex justify-between items-center mb-5 border-b border-slate-50 pb-4">
-                    <div><h3 className="text-base font-black text-slate-800">{formatDate(selectedDay)}</h3></div>
+                    <div>
+                      <h3 className="text-base font-black text-slate-800">{formatDate(selectedDay)}</h3>
+                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
+                        Saldo em mãos neste dia: <span className={dayCumulativeBalance >= 0 ? 'text-emerald-500' : 'text-rose-500'}>{formatCurrency(dayCumulativeBalance)}</span>
+                      </div>
+                    </div>
                     <div className="text-right">
                        <p className={`text-sm font-bold ${dayBalance >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                         {formatCurrency(dayBalance)}
+                         Fluxo: {dayBalance >= 0 ? '+' : ''}{formatCurrency(dayBalance)}
                        </p>
                     </div>
                   </div>
@@ -275,8 +303,9 @@ const App: React.FC = () => {
           <div className="space-y-6 animate-in fade-in duration-500">
              <h2 className="text-lg font-black text-slate-800 px-1 uppercase tracking-tight">Análise: {months[viewingMonth]}</h2>
              <div className="bg-white p-7 rounded-3xl border-2 border-slate-100 space-y-6">
-                {(Object.entries(categoryTotals) as [string, number][]).length > 0 ? (Object.entries(categoryTotals) as [string, number][]).sort((a,b) => b[1] - a[1]).map(([cat, val]) => {
+                {(Object.entries(categoryTotals) as [string, number][]).length > 0 ? (Object.entries(categoryTotals) as [string, number][]).sort((a,b) => b[1] - a[1]).map(([cat, val], idx) => {
                   const perc = stats.monthlyExpenses > 0 ? (val / stats.monthlyExpenses) * 100 : 0;
+                  const color = CATEGORY_COLORS[idx % CATEGORY_COLORS.length];
                   return (
                     <div key={cat} className="space-y-2">
                       <div className="flex justify-between items-end">
@@ -286,8 +315,8 @@ const App: React.FC = () => {
                           <span className="text-[9px] font-bold text-blue-500">{perc.toFixed(0)}%</span>
                         </div>
                       </div>
-                      <div className="h-2 w-full bg-slate-50 rounded-full overflow-hidden">
-                        <div className="h-full bg-blue-500" style={{width: `${perc}%`}}></div>
+                      <div className="h-2.5 w-full bg-slate-50 rounded-full overflow-hidden">
+                        <div className={`h-full ${color} transition-all duration-1000`} style={{width: `${perc}%`}}></div>
                       </div>
                     </div>
                   );
@@ -322,15 +351,14 @@ const App: React.FC = () => {
         )}
       </main>
 
-      {/* Navegação */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-xl border-t border-slate-100 pb-8 pt-4 px-4 z-40">
+      <nav className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t border-slate-100 pb-8 pt-4 px-4 z-40">
         <div className="max-w-xl mx-auto flex items-center justify-between gap-1">
-          {(Object.entries(tabConfig) as [Tab, any][]).map(([id, cfg]) => (
+          {(Object.entries(TAB_COLORS) as [Tab, {active: string, icon: string, label: string}][]).map(([id, cfg]) => (
             <button
               key={id}
-              onClick={() => { setActiveTab(id); setSelectedDay(null); }}
-              className={`flex-1 flex flex-col items-center gap-1.5 py-2.5 rounded-2xl transition-all ${
-                activeTab === id ? 'bg-slate-800 text-white shadow-xl translate-y-[-4px]' : 'text-slate-400 hover:text-slate-600'
+              onClick={() => { setActiveTab(id); setSelectedDay(null); setFocusedTransactionId(null); }}
+              className={`flex-1 flex flex-col items-center gap-1.5 py-3 rounded-2xl transition-all duration-300 ${
+                activeTab === id ? `${cfg.active} shadow-sm translate-y-[-2px]` : 'text-slate-400 hover:text-slate-600'
               }`}
             >
               <i className={`fa-solid ${cfg.icon} ${activeTab === id ? 'text-base' : 'text-sm'}`}></i>
@@ -340,7 +368,6 @@ const App: React.FC = () => {
         </div>
       </nav>
 
-      {/* Modal de Configurações Atualizado com Import/Export Real */}
       {isSettingsOpen && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-50 flex items-center justify-center p-6">
            <div className="bg-white w-full max-w-sm rounded-3xl p-8 shadow-2xl border border-slate-100">
@@ -384,7 +411,7 @@ const App: React.FC = () => {
       {isFormOpen && (
         <TransactionForm 
           onAdd={handleAdd} 
-          onClose={() => setIsFormOpen(false)} 
+          onClose={() => { setIsFormOpen(false); setEditingTransaction(null); }} 
           initialData={editingTransaction}
           customCategories={customCategories}
           onAddCategory={(c) => setCustomCategories(prev => [...prev, c])}

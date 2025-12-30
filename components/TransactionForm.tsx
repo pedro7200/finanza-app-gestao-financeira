@@ -18,7 +18,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onAdd, onClose
   const [date, setDate] = useState(initialData?.date || new Date().toISOString().split('T')[0]);
   const [isFixed, setIsFixed] = useState(initialData?.isFixed || false);
   const [recurrence, setRecurrence] = useState(initialData?.recurrenceMonths?.toString() || '0');
-  const [newCat, setNewCat] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,14 +37,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onAdd, onClose
 
     onAdd(transactionData);
     onClose();
-  };
-
-  const handleAddNewCategory = () => {
-    if (newCat.trim()) {
-      onAddCategory(newCat.trim());
-      setCategory(newCat.trim());
-      setNewCat('');
-    }
   };
 
   return (
@@ -153,7 +144,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onAdd, onClose
                     onClick={() => setCategory(cat)}
                     className={`px-3 py-2 rounded-xl text-[10px] font-bold transition-all border-2 ${
                       category === cat 
-                        ? 'bg-slate-800 border-slate-800 text-white shadow-md' 
+                        ? 'bg-white border-slate-800 text-slate-800 shadow-sm' 
                         : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300'
                     }`}
                   >
@@ -166,7 +157,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onAdd, onClose
 
           <button 
             type="submit" 
-            className="w-full bg-slate-800 text-white py-4 rounded-2xl font-bold text-xs uppercase tracking-[0.2em] hover:bg-slate-900 shadow-xl active:scale-[0.98] transition-all"
+            className="w-full bg-white text-slate-800 border-2 border-slate-200 py-4 rounded-2xl font-bold text-xs uppercase tracking-[0.2em] hover:bg-slate-50 shadow-sm active:scale-[0.98] transition-all"
           >
             {initialData ? 'Salvar Alterações' : 'Confirmar Lançamento'}
           </button>

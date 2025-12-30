@@ -16,7 +16,6 @@ export const FinancialTips: React.FC = () => {
   const [tipIndex, setTipIndex] = useState(0);
 
   useEffect(() => {
-    // Muda a dica aleatoriamente ao carregar ou a cada 15 segundos
     const newIndex = Math.floor(Math.random() * TIPS.length);
     setTipIndex(newIndex);
 
@@ -28,7 +27,7 @@ export const FinancialTips: React.FC = () => {
   }, []);
 
   return (
-    <div className="bg-slate-800 text-slate-100 p-5 rounded-3xl border border-slate-700 shadow-xl relative overflow-hidden transition-all duration-500">
+    <div className="bg-white text-slate-700 p-5 rounded-3xl border-2 border-slate-100 shadow-sm relative overflow-hidden transition-all duration-500">
       <div className="relative z-10">
         <div className="flex items-center gap-2 mb-2">
           <i className="fa-solid fa-lightbulb text-yellow-400 text-[10px]"></i>
