@@ -32,6 +32,8 @@ export interface FinancialStats {
   futureExpenses: number;
   monthlyIncome: number;
   monthlyExpenses: number;
+  earnedSoFar: number;
+  spentSoFar: number;
   healthScore: number;
 }
 

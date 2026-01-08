@@ -28,7 +28,6 @@ const App: React.FC = () => {
   const [viewingYear, setViewingYear] = useState(new Date().getFullYear());
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Estados principais
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
     const saved = localStorage.getItem('finanza_v13_data');
     let data: Transaction[] = saved ? JSON.parse(saved) : [];
@@ -59,7 +58,6 @@ const App: React.FC = () => {
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [focusedTransactionId, setFocusedTransactionId] = useState<string | null>(null);
 
-  // Forms extras
   const [isSavingFormOpen, setIsSavingFormOpen] = useState(false);
   const [isWishFormOpen, setIsWishFormOpen] = useState(false);
 
@@ -74,7 +72,6 @@ const App: React.FC = () => {
   const categoryTotals = useMemo(() => getCategoryTotals(transactions, viewingYear, viewingMonth), [transactions, viewingYear, viewingMonth]);
   const totalSavings = useMemo(() => savings.reduce((acc, s) => acc + s.amount, 0), [savings]);
 
-  // Fix: Adding missing logic handlers
   const handleAdd = (t: Transaction) => {
     if (editingTransaction) {
       setTransactions(prev => prev.map(tr => tr.id === t.id ? t : tr));
@@ -100,7 +97,6 @@ const App: React.FC = () => {
     setSelectedDay(date);
   };
 
-  // Fix: Adding missing memoized variables for the views
   const filteredExtract = useMemo(() => {
     return transactions.filter(t => isTransactionInMonth(t, viewingYear, viewingMonth))
       .sort((a, b) => b.date.localeCompare(a.date));
@@ -130,7 +126,6 @@ const App: React.FC = () => {
     return calculateBalanceAtDate(transactions, selectedDay);
   }, [transactions, selectedDay]);
 
-  // Fix: Adding backup/import logic
   const exportBackup = () => {
     const data = { transactions, savings, wishlist, customCategories };
     const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
@@ -225,6 +220,30 @@ const App: React.FC = () => {
 
             <FinancialTips />
 
+            {/* NOVA SEÇÃO: ATÉ HOJE NO MÊS VIGENTE */}
+            <div className="bg-white p-6 rounded-3xl border-2 border-slate-100 shadow-sm space-y-4">
+               <div className="flex items-center gap-3 mb-2">
+                  <div className="w-9 h-9 bg-blue-50 text-blue-500 rounded-xl flex items-center justify-center">
+                    <i className="fa-solid fa-clock-rotate-left text-sm"></i>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-700">Resumo até hoje</h3>
+                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Acumulado no mês até {new Date().getDate()}/{new Date().getMonth() + 1}</p>
+                  </div>
+               </div>
+               
+               <div className="grid grid-cols-2 gap-4 pt-2">
+                  <div className="bg-emerald-50/50 p-4 rounded-2xl border border-emerald-100">
+                    <p className="text-[8px] font-bold text-emerald-600 uppercase tracking-widest mb-1">Ganhos até hoje</p>
+                    <p className="text-base font-bold text-emerald-700">{formatCurrency(stats.earnedSoFar)}</p>
+                  </div>
+                  <div className="bg-rose-50/50 p-4 rounded-2xl border border-rose-100">
+                    <p className="text-[8px] font-bold text-rose-600 uppercase tracking-widest mb-1">Gastos até hoje</p>
+                    <p className="text-base font-bold text-rose-700">{formatCurrency(stats.spentSoFar)}</p>
+                  </div>
+               </div>
+            </div>
+
             <div className="bg-white p-6 rounded-3xl border-2 border-slate-100 shadow-sm space-y-4">
                <div className="flex items-center gap-3 mb-2">
                   <div className="w-9 h-9 bg-rose-50 text-rose-500 rounded-xl flex items-center justify-center">
@@ -257,7 +276,6 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {/* NOVAS ABAS */}
         {activeTab === 'savings' && (
           <div className="space-y-6 animate-in fade-in duration-500">
             <header className="px-1">
@@ -354,7 +372,6 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {/* ABAS ORIGINAIS */}
         {activeTab === 'extract' && (
           <div className="space-y-4 animate-in fade-in duration-500">
             <h2 className="text-lg font-black text-slate-800 px-1 uppercase tracking-tight">Extrato: {months[viewingMonth]}</h2>
@@ -498,7 +515,6 @@ const App: React.FC = () => {
         </div>
       </nav>
 
-      {/* MODAL CONFIGURAÇÕES */}
       {isSettingsOpen && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-50 flex items-center justify-center p-6">
            <div className="bg-white w-full max-w-sm rounded-3xl p-8 shadow-2xl border border-slate-100">
@@ -525,7 +541,6 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* MODAIS DE INPUT (SAVINGS / WISHLIST) */}
       {isSavingFormOpen && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-50 flex items-center justify-center p-6 animate-in fade-in">
            <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl border border-slate-100">

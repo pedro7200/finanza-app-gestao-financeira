@@ -41,7 +41,6 @@ export const isTransactionInMonth = (t: Transaction, targetYear: number, targetM
 
 /**
  * Calcula o saldo acumulado (Entradas - Saídas) até uma data específica.
- * Essencial para garantir que transações passadas não mudem com entradas futuras.
  */
 export const calculateBalanceAtDate = (transactions: Transaction[], targetDateStr: string) => {
   let balance = 0;
@@ -62,7 +61,6 @@ export const calculateBalanceAtDate = (transactions: Transaction[], targetDateSt
       while (tempY < targetY || (tempY === targetY && tempM <= targetM)) {
         if (t.recurrenceMonths && t.recurrenceMonths > 0 && count >= t.recurrenceMonths) break;
         
-        // Data da instância do custo fixo
         const instanceDateStr = `${tempY}-${String(tempM + 1).padStart(2, '0')}-${String(t.fixedDay).padStart(2, '0')}`;
         
         if (instanceDateStr <= targetDateStr) {
@@ -89,10 +87,7 @@ export const calculateFinances = (transactions: Transaction[], viewYear: number,
   const now = new Date();
   const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   
-  // Saldo em mãos é o acumulado estritamente até hoje
   const onHand = calculateBalanceAtDate(transactions, todayStr);
-  
-  // Saldo final previsto é o acumulado até o último dia do mês visualizado
   const lastDayOfMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
   const lastDayStr = `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}-${String(lastDayOfMonth).padStart(2, '0')}`;
   const projectedTotal = calculateBalanceAtDate(transactions, lastDayStr);
@@ -100,6 +95,8 @@ export const calculateFinances = (transactions: Transaction[], viewYear: number,
   let monthlyIncome = 0;
   let monthlyExpenses = 0;
   let futureExpenses = 0;
+  let earnedSoFar = 0;
+  let spentSoFar = 0;
 
   transactions.forEach(t => {
     if (isTransactionInMonth(t, viewYear, viewMonth)) {
@@ -109,10 +106,17 @@ export const calculateFinances = (transactions: Transaction[], viewYear: number,
       if (isIncome) monthlyIncome += t.amount;
       if (isExpense) monthlyExpenses += t.amount;
 
-      // Gastos pendentes (do dia de hoje em diante no mês de visualização)
+      // Pegar o dia para comparação com "até hoje"
       const day = t.isFixed ? t.fixedDay : new Date(t.date + 'T12:00:00').getDate();
       const tFullDateStr = `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
       
+      // Cálculo "Até Hoje"
+      if (tFullDateStr <= todayStr) {
+        if (isIncome) earnedSoFar += t.amount;
+        if (isExpense) spentSoFar += t.amount;
+      }
+
+      // Gastos pendentes (do dia de hoje em diante no mês de visualização)
       if (tFullDateStr > todayStr && isExpense) {
         futureExpenses += t.amount;
       }
@@ -125,6 +129,8 @@ export const calculateFinances = (transactions: Transaction[], viewYear: number,
     futureExpenses,
     monthlyIncome,
     monthlyExpenses,
+    earnedSoFar,
+    spentSoFar,
     healthScore: monthlyIncome > 0 ? Math.max(0, Math.min(100, ((monthlyIncome - monthlyExpenses) / monthlyIncome) * 100)) : 0
   };
 };
