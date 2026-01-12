@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { TransactionType, Transaction } from '../types';
 
 interface TransactionFormProps {
@@ -13,7 +13,15 @@ interface TransactionFormProps {
 export const TransactionForm: React.FC<TransactionFormProps> = ({ onAdd, onClose, initialData, customCategories, onAddCategory }) => {
   const [description, setDescription] = useState(initialData?.description || '');
   const [amount, setAmount] = useState(initialData?.amount.toString() || '');
-  const [type, setType] = useState<TransactionType>(initialData?.type || 'EXPENSE');
+  const [mainType, setMainType] = useState<'INCOME' | 'EXPENSE' | 'PROSPECT'>(() => {
+    if (initialData?.type.startsWith('PROSPECT')) return 'PROSPECT';
+    return (initialData?.type as 'INCOME' | 'EXPENSE') || 'EXPENSE';
+  });
+  const [prospectDirection, setProspectDirection] = useState<'INCOME' | 'EXPENSE'>(() => {
+    if (initialData?.type === 'PROSPECT_INCOME') return 'INCOME';
+    return 'EXPENSE';
+  });
+  
   const [category, setCategory] = useState(initialData?.category || 'Alimentação');
   const [date, setDate] = useState(initialData?.date || new Date().toISOString().split('T')[0]);
   const [isFixed, setIsFixed] = useState(initialData?.isFixed || false);
@@ -24,14 +32,21 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onAdd, onClose
     e.preventDefault();
     if (!description || !amount) return;
 
+    let finalType: TransactionType;
+    if (mainType === 'PROSPECT') {
+      finalType = prospectDirection === 'INCOME' ? 'PROSPECT_INCOME' : 'PROSPECT_EXPENSE';
+    } else {
+      finalType = mainType;
+    }
+
     const transactionData: Transaction = {
       id: initialData?.id || Math.random().toString(36).substr(2, 9),
       description,
       amount: parseFloat(amount),
-      type,
+      type: finalType,
       category: isFixed ? 'Custo Fixo' : category,
       date,
-      isFixed,
+      isFixed: mainType === 'PROSPECT' ? false : isFixed,
       fixedDay: new Date(date + 'T12:00:00').getDate(),
       recurrenceMonths: isFixed ? parseInt(recurrence) : undefined,
     };
@@ -65,14 +80,14 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onAdd, onClose
             {[
               { id: 'INCOME', label: 'Entrada (+)' },
               { id: 'EXPENSE', label: 'Saída (-)' },
-              { id: 'PROSPECT_EXPENSE', label: 'Previsão (?)' }
+              { id: 'PROSPECT', label: 'Previsão (?)' }
             ].map((t) => (
               <button
                 key={t.id}
                 type="button"
-                onClick={() => setType(t.id as TransactionType)}
+                onClick={() => setMainType(t.id as any)}
                 className={`flex-1 py-3 rounded-xl text-[9px] font-bold transition-all uppercase tracking-widest ${
-                  type === t.id 
+                  mainType === t.id 
                     ? 'bg-white text-slate-800 shadow-sm border border-slate-200' 
                     : 'text-slate-400 hover:text-slate-500'
                 }`}
@@ -81,6 +96,25 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onAdd, onClose
               </button>
             ))}
           </div>
+
+          {mainType === 'PROSPECT' && (
+            <div className="flex gap-2 p-1 bg-amber-50 rounded-xl border border-amber-100 animate-in zoom-in-95 duration-200">
+              <button
+                type="button"
+                onClick={() => setProspectDirection('INCOME')}
+                className={`flex-1 py-2 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all ${prospectDirection === 'INCOME' ? 'bg-amber-400 text-white shadow-sm' : 'text-amber-400'}`}
+              >
+                Prever Entrada
+              </button>
+              <button
+                type="button"
+                onClick={() => setProspectDirection('EXPENSE')}
+                className={`flex-1 py-2 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all ${prospectDirection === 'EXPENSE' ? 'bg-amber-400 text-white shadow-sm' : 'text-amber-400'}`}
+              >
+                Prever Saída
+              </button>
+            </div>
+          )}
 
           <div className="space-y-4">
             <div>
@@ -91,7 +125,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onAdd, onClose
                 value={description} 
                 onChange={(e) => setDescription(e.target.value)}
                 className="w-full px-4 py-3.5 rounded-xl border-2 border-slate-200 bg-white text-slate-700 focus:border-slate-800 focus:outline-none transition-all text-sm shadow-sm"
-                placeholder="O que é este lançamento?"
+                placeholder="Ex: Reserva de viagem, Bônus futuro..."
               />
             </div>
 
@@ -109,7 +143,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onAdd, onClose
                 />
               </div>
               <div>
-                <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] mb-1.5 block">Data Inicial</label>
+                <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] mb-1.5 block">Data</label>
                 <input
                   type="date" 
                   required 
@@ -121,33 +155,34 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onAdd, onClose
             </div>
           </div>
 
-          <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
-             <div className="flex items-center gap-3">
-               <input 
-                 type="checkbox" 
-                 id="fixed" 
-                 checked={isFixed} 
-                 onChange={(e) => setIsFixed(e.target.checked)}
-                 disabled={type.startsWith('PROSPECT')}
-                 className="w-5 h-5 rounded-lg border-slate-300 text-slate-800 focus:ring-slate-800 transition-all cursor-pointer disabled:opacity-50" 
-               />
-               <label htmlFor="fixed" className={`text-xs font-bold text-slate-700 cursor-pointer select-none ${type.startsWith('PROSPECT') ? 'opacity-50' : ''}`}>Custo Fixo Mensal</label>
-             </div>
-             
-             {isFixed && !type.startsWith('PROSPECT') && (
-               <div className="pt-2 animate-in fade-in duration-300">
-                  <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Repetir por quantos meses? (0 = sempre)</label>
-                  <input 
-                    type="number" 
-                    value={recurrence} 
-                    onChange={(e) => setRecurrence(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm font-bold"
-                  />
+          {mainType !== 'PROSPECT' && (
+            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+               <div className="flex items-center gap-3">
+                 <input 
+                   type="checkbox" 
+                   id="fixed" 
+                   checked={isFixed} 
+                   onChange={(e) => setIsFixed(e.target.checked)}
+                   className="w-5 h-5 rounded-lg border-slate-300 text-slate-800 focus:ring-slate-800 transition-all cursor-pointer" 
+                 />
+                 <label htmlFor="fixed" className="text-xs font-bold text-slate-700 cursor-pointer select-none">Custo Fixo Mensal</label>
                </div>
-             )}
-          </div>
+               
+               {isFixed && (
+                 <div className="pt-2 animate-in fade-in duration-300">
+                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Repetir por quantos meses? (0 = sempre)</label>
+                    <input 
+                      type="number" 
+                      value={recurrence} 
+                      onChange={(e) => setRecurrence(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm font-bold"
+                    />
+                 </div>
+               )}
+            </div>
+          )}
 
-          {!isFixed && (
+          {(!isFixed || mainType === 'PROSPECT') && (
             <div className="space-y-4">
               <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] block">Categoria</label>
               
@@ -181,7 +216,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onAdd, onClose
                   onClick={handleAddCustomCategory}
                   className="px-4 py-2 bg-slate-800 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-slate-700 transition-colors"
                 >
-                  <i className="fa-solid fa-plus mr-1"></i> Criar
+                  <i className="fa-solid fa-plus mr-1"></i>
                 </button>
               </div>
             </div>
@@ -189,7 +224,9 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onAdd, onClose
 
           <button 
             type="submit" 
-            className="w-full bg-white text-slate-800 border-2 border-slate-200 py-4 rounded-2xl font-bold text-xs uppercase tracking-[0.2em] hover:bg-slate-50 shadow-sm active:scale-[0.98] transition-all"
+            className={`w-full py-4 rounded-2xl font-bold text-xs uppercase tracking-[0.2em] shadow-sm active:scale-[0.98] transition-all border-2 ${
+              mainType === 'PROSPECT' ? 'bg-amber-500 text-white border-amber-400' : 'bg-white text-slate-800 border-slate-200 hover:bg-slate-50'
+            }`}
           >
             {initialData ? 'Salvar Alterações' : 'Confirmar Lançamento'}
           </button>
