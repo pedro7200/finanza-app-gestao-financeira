@@ -62,18 +62,22 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onAdd, onClose
 
         <form onSubmit={handleSubmit} className="space-y-5">
           <div className="flex bg-slate-100 p-1.5 rounded-2xl border border-slate-200">
-            {['INCOME', 'EXPENSE'].map((t) => (
+            {[
+              { id: 'INCOME', label: 'Entrada (+)' },
+              { id: 'EXPENSE', label: 'Saída (-)' },
+              { id: 'PROSPECT_EXPENSE', label: 'Previsão (?)' }
+            ].map((t) => (
               <button
-                key={t}
+                key={t.id}
                 type="button"
-                onClick={() => setType(t as TransactionType)}
-                className={`flex-1 py-3 rounded-xl text-[10px] font-bold transition-all uppercase tracking-widest ${
-                  type === t 
+                onClick={() => setType(t.id as TransactionType)}
+                className={`flex-1 py-3 rounded-xl text-[9px] font-bold transition-all uppercase tracking-widest ${
+                  type === t.id 
                     ? 'bg-white text-slate-800 shadow-sm border border-slate-200' 
                     : 'text-slate-400 hover:text-slate-500'
                 }`}
               >
-                {t === 'INCOME' ? 'Entrada (+)' : 'Saída (-)'}
+                {t.label}
               </button>
             ))}
           </div>
@@ -124,12 +128,13 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onAdd, onClose
                  id="fixed" 
                  checked={isFixed} 
                  onChange={(e) => setIsFixed(e.target.checked)}
-                 className="w-5 h-5 rounded-lg border-slate-300 text-slate-800 focus:ring-slate-800 transition-all cursor-pointer" 
+                 disabled={type.startsWith('PROSPECT')}
+                 className="w-5 h-5 rounded-lg border-slate-300 text-slate-800 focus:ring-slate-800 transition-all cursor-pointer disabled:opacity-50" 
                />
-               <label htmlFor="fixed" className="text-xs font-bold text-slate-700 cursor-pointer select-none">Custo Fixo Mensal</label>
+               <label htmlFor="fixed" className={`text-xs font-bold text-slate-700 cursor-pointer select-none ${type.startsWith('PROSPECT') ? 'opacity-50' : ''}`}>Custo Fixo Mensal</label>
              </div>
              
-             {isFixed && (
+             {isFixed && !type.startsWith('PROSPECT') && (
                <div className="pt-2 animate-in fade-in duration-300">
                   <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Repetir por quantos meses? (0 = sempre)</label>
                   <input 

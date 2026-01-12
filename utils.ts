@@ -41,6 +41,7 @@ export const isTransactionInMonth = (t: Transaction, targetYear: number, targetM
 
 /**
  * Calcula o saldo acumulado (Entradas - Saídas) até uma data específica.
+ * Ignora transações de PREVISÃO (PROSPECT)
  */
 export const calculateBalanceAtDate = (transactions: Transaction[], targetDateStr: string) => {
   let balance = 0;
@@ -49,6 +50,9 @@ export const calculateBalanceAtDate = (transactions: Transaction[], targetDateSt
   const targetM = targetDate.getMonth();
 
   transactions.forEach(t => {
+    // Ignora transações de previsão no cálculo de saldo real
+    if (t.type.startsWith('PROSPECT')) return;
+
     const startDate = new Date(t.date + 'T12:00:00');
     const startY = startDate.getFullYear();
     const startM = startDate.getMonth();
@@ -61,11 +65,12 @@ export const calculateBalanceAtDate = (transactions: Transaction[], targetDateSt
       while (tempY < targetY || (tempY === targetY && tempM <= targetM)) {
         if (t.recurrenceMonths && t.recurrenceMonths > 0 && count >= t.recurrenceMonths) break;
         
-        const instanceDateStr = `${tempY}-${String(tempM + 1).padStart(2, '0')}-${String(t.fixedDay).padStart(2, '0')}`;
+        const dayToUse = t.fixedDay || startDate.getDate();
+        const instanceDateStr = `${tempY}-${String(tempM + 1).padStart(2, '0')}-${String(dayToUse).padStart(2, '0')}`;
         
         if (instanceDateStr <= targetDateStr) {
-          if (t.type.includes('INCOME')) balance += t.amount;
-          if (t.type.includes('EXPENSE')) balance -= t.amount;
+          if (t.type === 'INCOME') balance += t.amount;
+          if (t.type === 'EXPENSE') balance -= t.amount;
         }
 
         tempM++;
@@ -74,8 +79,8 @@ export const calculateBalanceAtDate = (transactions: Transaction[], targetDateSt
       }
     } else {
       if (t.date <= targetDateStr) {
-        if (t.type.includes('INCOME')) balance += t.amount;
-        if (t.type.includes('EXPENSE')) balance -= t.amount;
+        if (t.type === 'INCOME') balance += t.amount;
+        if (t.type === 'EXPENSE') balance -= t.amount;
       }
     }
   });
@@ -97,26 +102,31 @@ export const calculateFinances = (transactions: Transaction[], viewYear: number,
   let futureExpenses = 0;
   let earnedSoFar = 0;
   let spentSoFar = 0;
+  let prospectBalance = 0;
 
   transactions.forEach(t => {
     if (isTransactionInMonth(t, viewYear, viewMonth)) {
-      const isIncome = t.type.includes('INCOME');
-      const isExpense = t.type.includes('EXPENSE');
+      const isIncome = t.type === 'INCOME';
+      const isExpense = t.type === 'EXPENSE';
+      const isProspect = t.type.startsWith('PROSPECT');
 
       if (isIncome) monthlyIncome += t.amount;
       if (isExpense) monthlyExpenses += t.amount;
+      
+      if (isProspect) {
+        if (t.type === 'PROSPECT_INCOME') prospectBalance += t.amount;
+        else prospectBalance -= t.amount;
+        return; // Pula cálculos de "so far" para previsões
+      }
 
-      // Pegar o dia para comparação com "até hoje"
-      const day = t.isFixed ? t.fixedDay : new Date(t.date + 'T12:00:00').getDate();
+      const day = t.isFixed ? (t.fixedDay || 1) : new Date(t.date + 'T12:00:00').getDate();
       const tFullDateStr = `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
       
-      // Cálculo "Até Hoje"
       if (tFullDateStr <= todayStr) {
         if (isIncome) earnedSoFar += t.amount;
         if (isExpense) spentSoFar += t.amount;
       }
 
-      // Gastos pendentes (do dia de hoje em diante no mês de visualização)
       if (tFullDateStr > todayStr && isExpense) {
         futureExpenses += t.amount;
       }
@@ -131,6 +141,7 @@ export const calculateFinances = (transactions: Transaction[], viewYear: number,
     monthlyExpenses,
     earnedSoFar,
     spentSoFar,
+    forecastTotal: projectedTotal + prospectBalance,
     healthScore: monthlyIncome > 0 ? Math.max(0, Math.min(100, ((monthlyIncome - monthlyExpenses) / monthlyIncome) * 100)) : 0
   };
 };
@@ -139,7 +150,7 @@ export const getCategoryTotals = (transactions: Transaction[], viewYear: number,
   const totals: Record<string, number> = {};
   transactions.forEach(t => {
     if (isTransactionInMonth(t, viewYear, viewMonth)) {
-      if (t.type.includes('EXPENSE')) {
+      if (t.type === 'EXPENSE' || t.type === 'PROSPECT_EXPENSE') {
         const cat = t.isFixed ? 'Custo Fixo' : t.category;
         totals[cat] = (totals[cat] || 0) + t.amount;
       }

@@ -34,7 +34,8 @@ export interface FinancialStats {
   monthlyExpenses: number;
   earnedSoFar: number;
   spentSoFar: number;
+  forecastTotal: number;
   healthScore: number;
 }
 
-export type Tab = 'home' | 'extract' | 'calendar' | 'analytics' | 'fixed' | 'savings' | 'wishlist';
+export type Tab = 'home' | 'extract' | 'calendar' | 'forecast' | 'analytics' | 'fixed' | 'savings' | 'wishlist';
