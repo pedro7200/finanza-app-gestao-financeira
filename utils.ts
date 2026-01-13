@@ -1,4 +1,3 @@
-
 import { Transaction } from './types';
 
 export const formatCurrency = (value: number) => {
@@ -41,17 +40,17 @@ export const isTransactionInMonth = (t: Transaction, targetYear: number, targetM
 
 /**
  * Calcula o saldo acumulado (Entradas - Saídas) até uma data específica.
- * Ignora transações de PREVISÃO (PROSPECT)
+ * Por padrão, ignora transações de PREVISÃO (PROSPECT), a menos que includeProspects seja true.
  */
-export const calculateBalanceAtDate = (transactions: Transaction[], targetDateStr: string) => {
+export const calculateBalanceAtDate = (transactions: Transaction[], targetDateStr: string, includeProspects: boolean = false) => {
   let balance = 0;
   const targetDate = new Date(targetDateStr + 'T23:59:59');
   const targetY = targetDate.getFullYear();
   const targetM = targetDate.getMonth();
 
   transactions.forEach(t => {
-    // Ignora transações de previsão no cálculo de saldo real
-    if (t.type.startsWith('PROSPECT')) return;
+    // Ignora transações de previsão se includeProspects for false
+    if (!includeProspects && t.type.startsWith('PROSPECT')) return;
 
     const startDate = new Date(t.date + 'T12:00:00');
     const startY = startDate.getFullYear();
@@ -69,8 +68,8 @@ export const calculateBalanceAtDate = (transactions: Transaction[], targetDateSt
         const instanceDateStr = `${tempY}-${String(tempM + 1).padStart(2, '0')}-${String(dayToUse).padStart(2, '0')}`;
         
         if (instanceDateStr <= targetDateStr) {
-          if (t.type === 'INCOME') balance += t.amount;
-          if (t.type === 'EXPENSE') balance -= t.amount;
+          if (t.type === 'INCOME' || t.type === 'PROSPECT_INCOME') balance += t.amount;
+          if (t.type === 'EXPENSE' || t.type === 'PROSPECT_EXPENSE') balance -= t.amount;
         }
 
         tempM++;
@@ -79,8 +78,8 @@ export const calculateBalanceAtDate = (transactions: Transaction[], targetDateSt
       }
     } else {
       if (t.date <= targetDateStr) {
-        if (t.type === 'INCOME') balance += t.amount;
-        if (t.type === 'EXPENSE') balance -= t.amount;
+        if (t.type === 'INCOME' || t.type === 'PROSPECT_INCOME') balance += t.amount;
+        if (t.type === 'EXPENSE' || t.type === 'PROSPECT_EXPENSE') balance -= t.amount;
       }
     }
   });

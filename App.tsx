@@ -345,10 +345,13 @@ const App: React.FC = () => {
             {selectedDay && (
               <div className="bg-white p-6 rounded-3xl border-2 border-slate-100 shadow-xl animate-in slide-in-from-bottom-4 duration-300">
                  <div className="flex justify-between items-center mb-5 border-b border-slate-50 pb-4">
-                   <div>
+                   <div className="space-y-1">
                      <h3 className="text-base font-black text-slate-800">{formatDate(selectedDay)}</h3>
-                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
-                       Saldo Real Acumulado: <span className={calculateBalanceAtDate(transactions, selectedDay) >= 0 ? 'text-emerald-500' : 'text-rose-500'}>{formatCurrency(calculateBalanceAtDate(transactions, selectedDay))}</span>
+                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                       Saldo Real: <span className={calculateBalanceAtDate(transactions, selectedDay) >= 0 ? 'text-emerald-500' : 'text-rose-500'}>{formatCurrency(calculateBalanceAtDate(transactions, selectedDay))}</span>
+                     </p>
+                     <p className="text-[10px] font-black text-amber-500 uppercase tracking-widest">
+                       Com Previsões: <span>{formatCurrency(calculateBalanceAtDate(transactions, selectedDay, true))}</span>
                      </p>
                    </div>
                    <button onClick={() => setSelectedDay(null)} className="text-slate-300"><i className="fa-solid fa-xmark"></i></button>
@@ -453,16 +456,19 @@ const App: React.FC = () => {
             <button onClick={() => setIsWishFormOpen(true)} className="w-full bg-white border-2 border-slate-100 py-5 rounded-3xl font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2"><i className="fa-solid fa-heart text-pink-500"></i> Adicionar Desejo</button>
             <div className="space-y-4">
               {wishlist.map(w => {
-                const remaining = Math.max(0, w.amount - totalSavings);
-                const progress = Math.min(100, (totalSavings / w.amount) * 100);
+                // Fix potential arithmetic errors by ensuring explicit numeric types and preventing unknown values
+                const wishlistAmount = Number(w.amount);
+                const currentTotalSavings = Number(totalSavings);
+                const remaining = Math.max(0, wishlistAmount - currentTotalSavings);
+                const progress = wishlistAmount > 0 ? Math.min(100, (currentTotalSavings / wishlistAmount) * 100) : 0;
                 return (
                   <div key={w.id} className="bg-white p-6 rounded-[32px] border-2 border-slate-100 shadow-sm space-y-4">
                      <div className="flex justify-between items-start">
                         <div><h3 className="text-sm font-black text-slate-800">{w.title}</h3><p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Meta: {formatDate(w.targetDate)}</p></div>
-                        <div className="text-right"><span className="text-xs font-black text-slate-700 block">{formatCurrency(w.amount)}</span><button onClick={() => setWishlist(prev => prev.filter(x => x.id !== w.id))} className="text-rose-300 text-[9px] font-bold uppercase">Remover</button></div>
+                        <div className="text-right"><span className="text-xs font-black text-slate-700 block">{formatCurrency(wishlistAmount)}</span><button onClick={() => setWishlist(prev => prev.filter(x => x.id !== w.id))} className="text-rose-300 text-[9px] font-bold uppercase">Remover</button></div>
                      </div>
                      <div className="space-y-1.5">
-                        <div className="flex justify-between text-[9px] font-bold uppercase"><span className="text-pink-500">Guardado: {formatCurrency(totalSavings)}</span><span className="text-slate-400">Falta: {formatCurrency(remaining)}</span></div>
+                        <div className="flex justify-between text-[9px] font-bold uppercase"><span className="text-pink-500">Guardado: {formatCurrency(currentTotalSavings)}</span><span className="text-slate-400">Falta: {formatCurrency(remaining)}</span></div>
                         <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden border border-slate-50"><div className="h-full bg-pink-400 transition-all duration-1000" style={{ width: `${progress}%` }}></div></div>
                      </div>
                   </div>
@@ -508,12 +514,12 @@ const App: React.FC = () => {
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-50 flex items-center justify-center p-6 animate-in fade-in">
            <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl border border-slate-100">
               <h2 className="text-lg font-black text-slate-800 uppercase mb-4">Novo Aporte</h2>
-              {/* Added explicit types and safe value extraction for saving form submission */}
               <form onSubmit={(e: React.FormEvent<HTMLFormElement>) => { 
                 e.preventDefault(); 
                 const fd = new FormData(e.currentTarget); 
                 const amountVal = fd.get('amount');
                 const dateVal = fd.get('date');
+                // Ensure form data is treated as string to avoid type issues with parseFloat
                 const amt = typeof amountVal === 'string' ? parseFloat(amountVal) : 0; 
                 const date = typeof dateVal === 'string' ? dateVal : new Date().toISOString().split('T')[0];
                 if(amt > 0) { 
@@ -533,13 +539,13 @@ const App: React.FC = () => {
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-50 flex items-center justify-center p-6 animate-in fade-in">
            <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl border border-slate-100">
               <h2 className="text-lg font-black text-slate-800 uppercase mb-4">Novo Desejo</h2>
-              {/* Added explicit types and safe value extraction for wishlist form submission */}
               <form onSubmit={(e: React.FormEvent<HTMLFormElement>) => { 
                 e.preventDefault(); 
                 const fd = new FormData(e.currentTarget); 
                 const titleVal = fd.get('title');
                 const amountVal = fd.get('amount');
                 const dateVal = fd.get('date');
+                // Ensure form data is treated as string to avoid type issues with parseFloat
                 const amt = typeof amountVal === 'string' ? parseFloat(amountVal) : 0; 
                 const title = typeof titleVal === 'string' ? titleVal : '';
                 const date = typeof dateVal === 'string' ? dateVal : new Date().toISOString().split('T')[0];
