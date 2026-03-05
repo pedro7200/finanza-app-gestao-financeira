@@ -267,7 +267,7 @@ export const generateMonthlyStatementPDF = (
         const isIncome = trans.type.includes('INCOME');
         const isProspect = trans.isProspect;
 
-        // Draw rounded background for the row (only on the first cell of each row)
+        // Draw rounded background for the row (only on the first cell of the row)
         if (data.column.index === 0) {
           doc.setFillColor(255, 255, 255);
           doc.setDrawColor(241, 245, 249);
@@ -275,7 +275,7 @@ export const generateMonthlyStatementPDF = (
           doc.roundedRect(data.settings.margin.left, data.cell.y + 1, tableWidth, data.row.height - 2, 3, 3, 'FD');
         }
 
-        // Color coding for Type and Amount columns
+        // Color coding for Type and Amount
         if (data.column.index === 3 || data.column.index === 4) {
           if (isIncome) {
             doc.setTextColor(16, 185, 129); // emerald-500
@@ -285,7 +285,7 @@ export const generateMonthlyStatementPDF = (
             doc.setTextColor(244, 63, 94); // rose-500
           }
         } else {
-          doc.setTextColor(51, 65, 85); // Reset to default slate-700 for other columns
+          doc.setTextColor(51, 65, 85); // Reset for other columns
         }
       }
     },
