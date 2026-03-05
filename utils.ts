@@ -173,25 +173,29 @@ export const generateMonthlyStatementPDF = (
   const monthName = months[viewMonth];
   const title = `Extrato Mensal - ${monthName} / ${viewYear}`;
 
+  // Page Background (Slate-50)
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  doc.setFillColor(248, 250, 252);
+  doc.rect(0, 0, pageWidth, pageHeight, 'F');
+
   // Header
-  doc.setFontSize(22);
+  doc.setFontSize(24);
   doc.setTextColor(30, 41, 59); // slate-800
+  doc.setFont("helvetica", "bold");
   doc.text("Finanza.", 14, 20);
   
   doc.setFontSize(10);
   doc.setTextColor(148, 163, 184); // slate-400
-  doc.text("Sua Gestão Financeira Completa", 14, 26);
+  doc.setFont("helvetica", "normal");
+  doc.text("SUA GESTÃO FINANCEIRA COMPLETA", 14, 26);
 
-  doc.setFontSize(14);
+  doc.setFontSize(16);
   doc.setTextColor(51, 65, 85); // slate-700
   doc.text(title, 14, 38);
 
-  // Filter transactions for the month
-  const monthTransactions = transactions.filter(t => {
-    return isTransactionInMonth(t, viewYear, viewMonth);
-  });
-  
-  // We need to expand fixed transactions into instances for the specific month
+  // Filter and Expand transactions
+  const monthTransactions = transactions.filter(t => isTransactionInMonth(t, viewYear, viewMonth));
   const expandedTransactions: { date: string, description: string, category: string, type: string, amount: number, isProspect: boolean }[] = [];
   
   monthTransactions.forEach(t => {
@@ -218,7 +222,6 @@ export const generateMonthlyStatementPDF = (
     }
   });
 
-  // Sort by date
   expandedTransactions.sort((a, b) => a.date.localeCompare(b.date));
 
   const tableData = expandedTransactions.map(t => [
@@ -226,7 +229,6 @@ export const generateMonthlyStatementPDF = (
     t.description,
     t.category,
     t.type.includes('INCOME') ? 'Entrada' : 'Saída',
-    t.isProspect ? 'Sim' : 'Não',
     formatCurrency(t.amount)
   ]);
 
@@ -240,21 +242,88 @@ export const generateMonthlyStatementPDF = (
 
   autoTable(doc, {
     startY: 45,
-    head: [['Data', 'Descrição', 'Categoria', 'Tipo', 'Previsão', 'Valor']],
+    head: [['Data', 'Descrição', 'Categoria', 'Tipo', 'Valor']],
     body: tableData,
-    foot: [
-        ['', '', '', '', 'Total Entradas:', formatCurrency(totalIncomes)],
-        ['', '', '', '', 'Total Saídas:', formatCurrency(totalExpenses)],
-        ['', '', '', '', 'Saldo do Mês:', formatCurrency(totalIncomes - totalExpenses)]
-    ],
-    theme: 'striped',
-    headStyles: { fillColor: [51, 65, 85], fontSize: 10 },
-    bodyStyles: { fontSize: 9 },
-    footStyles: { fillColor: [241, 245, 249], textColor: [51, 65, 85], fontStyle: 'bold', fontSize: 10 },
-    alternateRowStyles: { fillColor: [248, 250, 252] }
+    theme: 'plain',
+    headStyles: { 
+      fillColor: [241, 245, 249], 
+      textColor: [71, 85, 105], 
+      fontSize: 9, 
+      fontStyle: 'bold',
+      cellPadding: 4
+    },
+    bodyStyles: { 
+      fontSize: 10, 
+      cellPadding: 6,
+      textColor: [51, 65, 85]
+    },
+    columnStyles: {
+      4: { halign: 'right', fontStyle: 'bold' }
+    },
+    didDrawCell: (data) => {
+      if (data.section === 'body') {
+        const rowIndex = data.row.index;
+        const trans = expandedTransactions[rowIndex];
+        const isIncome = trans.type.includes('INCOME');
+        const isProspect = trans.isProspect;
+
+        // Draw rounded background for the row (only on the first cell)
+        if (data.column.index === 0) {
+          doc.setFillColor(255, 255, 255);
+          doc.setDrawColor(241, 245, 249);
+          const tableWidth = doc.internal.pageSize.getWidth() - (data.settings.margin.left + (data.settings.margin.right || data.settings.margin.left));
+          doc.roundedRect(data.settings.margin.left, data.cell.y + 1, tableWidth, data.row.height - 2, 3, 3, 'FD');
+        }
+
+        // Color coding for Type and Amount
+        if (data.column.index === 3 || data.column.index === 4) {
+          if (isIncome) {
+            doc.setTextColor(16, 185, 129); // emerald-500
+          } else if (isProspect) {
+            doc.setTextColor(245, 158, 11); // amber-500
+          } else {
+            doc.setTextColor(244, 63, 94); // rose-500
+          }
+        }
+      }
+    },
+    margin: { top: 45 },
   });
 
-  // Footer with generation date
+  // Summary Cards at the end
+  const finalY = (doc as any).lastAutoTable.finalY + 10;
+  
+  // Total Income Card
+  doc.setFillColor(255, 255, 255);
+  doc.roundedRect(14, finalY, 60, 25, 4, 4, 'FD');
+  doc.setFontSize(8);
+  doc.setTextColor(148, 163, 184);
+  doc.text("TOTAL ENTRADAS", 19, finalY + 8);
+  doc.setFontSize(12);
+  doc.setTextColor(16, 185, 129);
+  doc.text(formatCurrency(totalIncomes), 19, finalY + 18);
+
+  // Total Expense Card
+  doc.setFillColor(255, 255, 255);
+  doc.roundedRect(78, finalY, 60, 25, 4, 4, 'FD');
+  doc.setFontSize(8);
+  doc.setTextColor(148, 163, 184);
+  doc.text("TOTAL SAÍDAS", 83, finalY + 8);
+  doc.setFontSize(12);
+  doc.setTextColor(244, 63, 94);
+  doc.text(formatCurrency(totalExpenses), 83, finalY + 18);
+
+  // Balance Card
+  doc.setFillColor(30, 41, 59);
+  doc.roundedRect(142, finalY, 54, 25, 4, 4, 'FD');
+  doc.setFontSize(8);
+  doc.setTextColor(241, 245, 249);
+  doc.text("SALDO MENSAL", 147, finalY + 8);
+  doc.setFontSize(12);
+  doc.setTextColor(255, 255, 255);
+  doc.text(formatCurrency(totalIncomes - totalExpenses), 147, finalY + 18);
+
+  // Footer
   const pageCount = (doc as any).internal.getNumberOfPages();
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i);
@@ -269,3 +338,4 @@ export const generateMonthlyStatementPDF = (
 
   doc.save(`extrato_${monthName.toLowerCase()}_${viewYear}.pdf`);
 };
+
