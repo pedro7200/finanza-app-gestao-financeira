@@ -5,7 +5,7 @@ import { TransactionForm } from './components/TransactionForm';
 import { FinancialCalendar } from './components/FinancialCalendar';
 import { SummaryHeader } from './components/SummaryHeader';
 import { FinancialTips } from './components/FinancialTips';
-import { calculateFinances, formatCurrency, formatDate, getCategoryTotals, isTransactionInMonth, calculateBalanceAtDate } from './utils';
+import { calculateFinances, formatCurrency, formatDate, getCategoryTotals, isTransactionInMonth, calculateBalanceAtDate, generateMonthlyStatementPDF } from './utils';
 
 const CATEGORY_COLORS = [
   'bg-blue-500', 'bg-emerald-500', 'bg-rose-500', 'bg-amber-500', 
@@ -292,9 +292,18 @@ const App: React.FC = () => {
           <div className="space-y-6 animate-in fade-in duration-500">
             <div className="flex justify-between items-center px-1">
               <h2 className="text-lg font-black text-slate-800 uppercase tracking-tight">Extrato Agrupado</h2>
-              <div className="flex bg-slate-200/50 p-1 rounded-xl">
-                <button onClick={() => setExtractMode('realized')} className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all ${extractMode === 'realized' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-400'}`}>Realizado</button>
-                <button onClick={() => setExtractMode('future')} className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all ${extractMode === 'future' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-400'}`}>Previsões</button>
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={() => generateMonthlyStatementPDF(transactions, viewingYear, viewingMonth, months)}
+                  className="w-9 h-9 bg-white border-2 border-slate-100 text-slate-600 rounded-xl flex items-center justify-center shadow-sm hover:bg-slate-50 transition-all"
+                  title="Imprimir PDF"
+                >
+                  <i className="fa-solid fa-print text-sm"></i>
+                </button>
+                <div className="flex bg-slate-200/50 p-1 rounded-xl">
+                  <button onClick={() => setExtractMode('realized')} className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all ${extractMode === 'realized' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-400'}`}>Realizado</button>
+                  <button onClick={() => setExtractMode('future')} className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all ${extractMode === 'future' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-400'}`}>Previsões</button>
+                </div>
               </div>
             </div>
 
@@ -386,7 +395,7 @@ const App: React.FC = () => {
           <div className="space-y-6 animate-in fade-in duration-500">
              <h2 className="text-lg font-black text-slate-800 px-1 uppercase tracking-tight">Análise: {months[viewingMonth]}</h2>
              <div className="bg-white p-7 rounded-3xl border-2 border-slate-100 space-y-6">
-                {Object.entries(categoryTotals).length > 0 ? Object.entries(categoryTotals).sort((a,b) => b[1] - a[1]).map(([cat, val], idx) => {
+                {Object.entries(categoryTotals).length > 0 ? (Object.entries(categoryTotals) as [string, number][]).sort((a,b) => b[1] - a[1]).map(([cat, val], idx) => {
                   const perc = stats.monthlyExpenses > 0 ? (val / stats.monthlyExpenses) * 100 : 0;
                   const color = CATEGORY_COLORS[idx % CATEGORY_COLORS.length];
                   return (

@@ -1,4 +1,6 @@
 import { Transaction } from './types';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 export const formatCurrency = (value: number) => {
   return new Intl.NumberFormat('pt-BR', {
@@ -160,3 +162,110 @@ export const getCategoryTotals = (transactions: Transaction[], viewYear: number,
 
 export const getDaysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();
 export const getFirstDayOfMonth = (year: number, month: number) => new Date(year, month, 1).getDay();
+
+export const generateMonthlyStatementPDF = (
+  transactions: Transaction[],
+  viewYear: number,
+  viewMonth: number,
+  months: string[]
+) => {
+  const doc = new jsPDF();
+  const monthName = months[viewMonth];
+  const title = `Extrato Mensal - ${monthName} / ${viewYear}`;
+
+  // Header
+  doc.setFontSize(22);
+  doc.setTextColor(30, 41, 59); // slate-800
+  doc.text("Finanza.", 14, 20);
+  
+  doc.setFontSize(10);
+  doc.setTextColor(148, 163, 184); // slate-400
+  doc.text("Sua Gestão Financeira Completa", 14, 26);
+
+  doc.setFontSize(14);
+  doc.setTextColor(51, 65, 85); // slate-700
+  doc.text(title, 14, 38);
+
+  // Filter transactions for the month
+  const monthTransactions = transactions.filter(t => {
+    return isTransactionInMonth(t, viewYear, viewMonth);
+  });
+  
+  // We need to expand fixed transactions into instances for the specific month
+  const expandedTransactions: { date: string, description: string, category: string, type: string, amount: number, isProspect: boolean }[] = [];
+  
+  monthTransactions.forEach(t => {
+    if (t.isFixed) {
+      const day = t.fixedDay || new Date(t.date + 'T12:00:00').getDate();
+      const instanceDateStr = `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      expandedTransactions.push({
+        date: instanceDateStr,
+        description: `${t.description} (Fixo)`,
+        category: t.category,
+        type: t.type,
+        amount: t.amount,
+        isProspect: t.type.startsWith('PROSPECT')
+      });
+    } else {
+      expandedTransactions.push({
+        date: t.date,
+        description: t.description,
+        category: t.category,
+        type: t.type,
+        amount: t.amount,
+        isProspect: t.type.startsWith('PROSPECT')
+      });
+    }
+  });
+
+  // Sort by date
+  expandedTransactions.sort((a, b) => a.date.localeCompare(b.date));
+
+  const tableData = expandedTransactions.map(t => [
+    formatDate(t.date),
+    t.description,
+    t.category,
+    t.type.includes('INCOME') ? 'Entrada' : 'Saída',
+    t.isProspect ? 'Sim' : 'Não',
+    formatCurrency(t.amount)
+  ]);
+
+  const totalIncomes = expandedTransactions
+    .filter(t => t.type.includes('INCOME'))
+    .reduce((acc, t) => acc + t.amount, 0);
+    
+  const totalExpenses = expandedTransactions
+    .filter(t => t.type.includes('EXPENSE'))
+    .reduce((acc, t) => acc + t.amount, 0);
+
+  autoTable(doc, {
+    startY: 45,
+    head: [['Data', 'Descrição', 'Categoria', 'Tipo', 'Previsão', 'Valor']],
+    body: tableData,
+    foot: [
+        ['', '', '', '', 'Total Entradas:', formatCurrency(totalIncomes)],
+        ['', '', '', '', 'Total Saídas:', formatCurrency(totalExpenses)],
+        ['', '', '', '', 'Saldo do Mês:', formatCurrency(totalIncomes - totalExpenses)]
+    ],
+    theme: 'striped',
+    headStyles: { fillColor: [51, 65, 85], fontSize: 10 },
+    bodyStyles: { fontSize: 9 },
+    footStyles: { fillColor: [241, 245, 249], textColor: [51, 65, 85], fontStyle: 'bold', fontSize: 10 },
+    alternateRowStyles: { fillColor: [248, 250, 252] }
+  });
+
+  // Footer with generation date
+  const pageCount = (doc as any).internal.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(8);
+    doc.setTextColor(148, 163, 184);
+    doc.text(
+      `Gerado em: ${new Date().toLocaleString('pt-BR')} - Página ${i} de ${pageCount}`,
+      14,
+      doc.internal.pageSize.getHeight() - 10
+    );
+  }
+
+  doc.save(`extrato_${monthName.toLowerCase()}_${viewYear}.pdf`);
+};
